@@ -9,19 +9,84 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
+import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
+import { Route as AuthenticatedRulesRouteImport } from './routes/_authenticated/rules'
+import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
+import { Route as AuthenticatedNowRouteImport } from './routes/_authenticated/now'
+import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
+import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
+import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as ApiPublicIngestRouteImport } from './routes/api/public/ingest'
+import { Route as AuthenticatedPlansIdRouteImport } from './routes/_authenticated/plans.$id'
 import { Route as ApiPublicCronChronosRouteImport } from './routes/api/public/cron/chronos'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedVaultRoute = AuthenticatedVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSkillsRoute = AuthenticatedSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRulesRoute = AuthenticatedRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPlansRoute = AuthenticatedPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedNowRoute = AuthenticatedNowRouteImport.update({
+  id: '/now',
+  path: '/now',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedMemoryRoute = AuthenticatedMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiPublicIngestRoute = ApiPublicIngestRouteImport.update({
   id: '/api/public/ingest',
   path: '/api/public/ingest',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedPlansIdRoute = AuthenticatedPlansIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedPlansRoute,
 } as any)
 const ApiPublicCronChronosRoute = ApiPublicCronChronosRouteImport.update({
   id: '/api/public/cron/chronos',
@@ -31,36 +96,124 @@ const ApiPublicCronChronosRoute = ApiPublicCronChronosRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/inbox': typeof AuthenticatedInboxRoute
+  '/logs': typeof AuthenticatedLogsRoute
+  '/memory': typeof AuthenticatedMemoryRoute
+  '/now': typeof AuthenticatedNowRoute
+  '/plans': typeof AuthenticatedPlansRouteWithChildren
+  '/rules': typeof AuthenticatedRulesRoute
+  '/skills': typeof AuthenticatedSkillsRoute
+  '/vault': typeof AuthenticatedVaultRoute
+  '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/inbox': typeof AuthenticatedInboxRoute
+  '/logs': typeof AuthenticatedLogsRoute
+  '/memory': typeof AuthenticatedMemoryRoute
+  '/now': typeof AuthenticatedNowRoute
+  '/plans': typeof AuthenticatedPlansRouteWithChildren
+  '/rules': typeof AuthenticatedRulesRoute
+  '/skills': typeof AuthenticatedSkillsRoute
+  '/vault': typeof AuthenticatedVaultRoute
+  '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
+  '/_authenticated/logs': typeof AuthenticatedLogsRoute
+  '/_authenticated/memory': typeof AuthenticatedMemoryRoute
+  '/_authenticated/now': typeof AuthenticatedNowRoute
+  '/_authenticated/plans': typeof AuthenticatedPlansRouteWithChildren
+  '/_authenticated/rules': typeof AuthenticatedRulesRoute
+  '/_authenticated/skills': typeof AuthenticatedSkillsRoute
+  '/_authenticated/vault': typeof AuthenticatedVaultRoute
+  '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/ingest' | '/api/public/cron/chronos'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/inbox'
+    | '/logs'
+    | '/memory'
+    | '/now'
+    | '/plans'
+    | '/rules'
+    | '/skills'
+    | '/vault'
+    | '/plans/$id'
+    | '/api/public/ingest'
+    | '/api/public/cron/chronos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/ingest' | '/api/public/cron/chronos'
-  id: '__root__' | '/' | '/api/public/ingest' | '/api/public/cron/chronos'
+  to:
+    | '/'
+    | '/login'
+    | '/inbox'
+    | '/logs'
+    | '/memory'
+    | '/now'
+    | '/plans'
+    | '/rules'
+    | '/skills'
+    | '/vault'
+    | '/plans/$id'
+    | '/api/public/ingest'
+    | '/api/public/cron/chronos'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/login'
+    | '/_authenticated/inbox'
+    | '/_authenticated/logs'
+    | '/_authenticated/memory'
+    | '/_authenticated/now'
+    | '/_authenticated/plans'
+    | '/_authenticated/rules'
+    | '/_authenticated/skills'
+    | '/_authenticated/vault'
+    | '/_authenticated/plans/$id'
+    | '/api/public/ingest'
+    | '/api/public/cron/chronos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ApiPublicIngestRoute: typeof ApiPublicIngestRoute
   ApiPublicCronChronosRoute: typeof ApiPublicCronChronosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -68,12 +221,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/vault': {
+      id: '/_authenticated/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof AuthenticatedVaultRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/skills': {
+      id: '/_authenticated/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof AuthenticatedSkillsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/rules': {
+      id: '/_authenticated/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof AuthenticatedRulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/plans': {
+      id: '/_authenticated/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof AuthenticatedPlansRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/now': {
+      id: '/_authenticated/now'
+      path: '/now'
+      fullPath: '/now'
+      preLoaderRoute: typeof AuthenticatedNowRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/memory': {
+      id: '/_authenticated/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof AuthenticatedMemoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/logs': {
+      id: '/_authenticated/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedLogsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/inbox': {
+      id: '/_authenticated/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthenticatedInboxRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/ingest': {
       id: '/api/public/ingest'
       path: '/api/public/ingest'
       fullPath: '/api/public/ingest'
       preLoaderRoute: typeof ApiPublicIngestRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/plans/$id': {
+      id: '/_authenticated/plans/$id'
+      path: '/$id'
+      fullPath: '/plans/$id'
+      preLoaderRoute: typeof AuthenticatedPlansIdRouteImport
+      parentRoute: typeof AuthenticatedPlansRoute
     }
     '/api/public/cron/chronos': {
       id: '/api/public/cron/chronos'
@@ -85,8 +301,47 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedPlansRouteChildren {
+  AuthenticatedPlansIdRoute: typeof AuthenticatedPlansIdRoute
+}
+
+const AuthenticatedPlansRouteChildren: AuthenticatedPlansRouteChildren = {
+  AuthenticatedPlansIdRoute: AuthenticatedPlansIdRoute,
+}
+
+const AuthenticatedPlansRouteWithChildren =
+  AuthenticatedPlansRoute._addFileChildren(AuthenticatedPlansRouteChildren)
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
+  AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
+  AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
+  AuthenticatedNowRoute: typeof AuthenticatedNowRoute
+  AuthenticatedPlansRoute: typeof AuthenticatedPlansRouteWithChildren
+  AuthenticatedRulesRoute: typeof AuthenticatedRulesRoute
+  AuthenticatedSkillsRoute: typeof AuthenticatedSkillsRoute
+  AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
+  AuthenticatedLogsRoute: AuthenticatedLogsRoute,
+  AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
+  AuthenticatedNowRoute: AuthenticatedNowRoute,
+  AuthenticatedPlansRoute: AuthenticatedPlansRouteWithChildren,
+  AuthenticatedRulesRoute: AuthenticatedRulesRoute,
+  AuthenticatedSkillsRoute: AuthenticatedSkillsRoute,
+  AuthenticatedVaultRoute: AuthenticatedVaultRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  LoginRoute: LoginRoute,
   ApiPublicIngestRoute: ApiPublicIngestRoute,
   ApiPublicCronChronosRoute: ApiPublicCronChronosRoute,
 }
