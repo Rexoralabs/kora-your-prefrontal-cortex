@@ -39,7 +39,7 @@ function MemoryPage() {
       <form onSubmit={save} className="rounded border border-border bg-card p-4 space-y-2">
         <textarea
           rows={3} value={text} onChange={(e) => setText(e.target.value)}
-          placeholder='Persist a fact: "I'm vegetarian." / "My team standup is 9:30am UTC."'
+          placeholder={`Persist a fact: "I'm vegetarian." / "My team standup is 9:30am UTC."`}
           className="w-full rounded bg-input border border-border px-3 py-2 text-sm outline-none focus:border-primary"
         />
         <div className="flex justify-end">
