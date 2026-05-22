@@ -1,5 +1,17 @@
 import { createFileRoute, redirect, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ChatCircle,
+  Tray,
+  Target,
+  ListChecks,
+  Sparkle,
+  Brain,
+  CalendarBlank,
+  Lock,
+  Terminal,
+  SignOut,
+} from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
@@ -10,14 +22,15 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 const TABS = [
-  { to: "/inbox", label: "inbox" },
-  { to: "/now", label: "now" },
-  { to: "/plans", label: "plans" },
-  { to: "/skills", label: "skills" },
-  { to: "/memory", label: "memory" },
-  { to: "/rules", label: "rules" },
-  { to: "/vault", label: "vault" },
-  { to: "/logs", label: "logs" },
+  { to: "/chat", label: "chat", Icon: ChatCircle },
+  { to: "/inbox", label: "inbox", Icon: Tray },
+  { to: "/now", label: "now", Icon: Target },
+  { to: "/plans", label: "plans", Icon: ListChecks },
+  { to: "/skills", label: "skills", Icon: Sparkle },
+  { to: "/memory", label: "memory", Icon: Brain },
+  { to: "/rules", label: "rules", Icon: CalendarBlank },
+  { to: "/vault", label: "vault", Icon: Lock },
+  { to: "/logs", label: "logs", Icon: Terminal },
 ] as const;
 
 function AuthedLayout() {
@@ -28,23 +41,37 @@ function AuthedLayout() {
     nav({ to: "/login" });
   }
   return (
-    <div className="min-h-screen bg-background text-foreground font-mono">
-      <header className="border-b border-border bg-card/60 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center gap-6 flex-wrap">
-          <Link to="/inbox" className="text-primary font-bold tracking-wide">KORA</Link>
-          <nav className="flex gap-1 flex-wrap">
-            {TABS.map((t) => {
-              const active = path.startsWith(t.to);
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3">
+          <Link to="/chat" className="mr-3 flex items-baseline gap-1.5">
+            <span className="text-lg font-medium tracking-tight">kora</span>
+            <span className="font-serif-italic text-xs text-muted-foreground">co-pilot</span>
+          </Link>
+          <nav className="flex flex-wrap gap-1">
+            {TABS.map(({ to, label, Icon }) => {
+              const active = path === to || path.startsWith(to + "/");
               return (
                 <Link
-                  key={t.to} to={t.to}
-                  className={`px-2.5 py-1 text-xs rounded border ${active ? "border-primary text-primary bg-primary/10" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                >{t.label}</Link>
+                  key={to}
+                  to={to}
+                  className={`group inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition ${
+                    active
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon weight={active ? "fill" : "regular"} size={14} />
+                  {label}
+                </Link>
               );
             })}
           </nav>
-          <button onClick={logout} className="ml-auto text-xs text-muted-foreground hover:text-destructive">
-            $ logout
+          <button
+            onClick={logout}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] text-muted-foreground hover:text-destructive"
+          >
+            <SignOut size={14} /> logout
           </button>
         </div>
       </header>
