@@ -20,6 +20,7 @@ import { Route as AuthenticatedNowRouteImport } from './routes/_authenticated/no
 import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
 import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
+import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as ApiPublicIngestRouteImport } from './routes/api/public/ingest'
 import { Route as AuthenticatedPlansIdRouteImport } from './routes/_authenticated/plans.$id'
 import { Route as ApiPublicCronChronosRouteImport } from './routes/api/public/cron/chronos'
@@ -78,6 +79,11 @@ const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
   path: '/inbox',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiPublicIngestRoute = ApiPublicIngestRouteImport.update({
   id: '/api/public/ingest',
   path: '/api/public/ingest',
@@ -97,6 +103,7 @@ const ApiPublicCronChronosRoute = ApiPublicCronChronosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/chat': typeof AuthenticatedChatRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/memory': typeof AuthenticatedMemoryRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/chat': typeof AuthenticatedChatRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/memory': typeof AuthenticatedMemoryRoute
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/memory': typeof AuthenticatedMemoryRoute
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/chat'
     | '/inbox'
     | '/logs'
     | '/memory'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/chat'
     | '/inbox'
     | '/logs'
     | '/memory'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/chat'
     | '/_authenticated/inbox'
     | '/_authenticated/logs'
     | '/_authenticated/memory'
@@ -277,6 +289,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/chat': {
+      id: '/_authenticated/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AuthenticatedChatRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/ingest': {
       id: '/api/public/ingest'
       path: '/api/public/ingest'
@@ -313,6 +332,7 @@ const AuthenticatedPlansRouteWithChildren =
   AuthenticatedPlansRoute._addFileChildren(AuthenticatedPlansRouteChildren)
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
@@ -324,6 +344,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
