@@ -4,12 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ingestSignal, listSignals } from "@/lib/agent.functions";
+import { ModuleShell, ModuleError } from "@/components/ModuleShell";
 
 const signalsQO = queryOptions({ queryKey: ["signals"], queryFn: () => listSignals() });
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   loader: ({ context }) => context.queryClient.ensureQueryData(signalsQO),
   component: InboxPage,
+  errorComponent: ModuleError,
 });
 
 function InboxPage() {
@@ -26,7 +28,7 @@ function InboxPage() {
     setBusy(true);
     try {
       const res = await ingest({ data: { text, source: "manual", priority: "normal", autorun: true } });
-      toast.success("Signal ingested, reasoning…");
+      toast.success("signal ingested — reasoning…");
       setText("");
       qc.invalidateQueries({ queryKey: ["signals"] });
       qc.invalidateQueries({ queryKey: ["plans"] });
@@ -39,44 +41,62 @@ function InboxPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section>
-        <h1 className="text-lg text-primary mb-2">// inbox</h1>
-        <form onSubmit={submit} className="rounded border border-border bg-card p-4 space-y-3">
+    <ModuleShell
+      eyebrow="inbox"
+      title="capture a signal"
+      caption={<>drop a thought, a task, or a worry — kora plans the rest.</>}
+    >
+      <form onSubmit={submit} className="glass rounded-2xl p-2">
+        <div className="field rounded-xl p-2">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder='Tell Kora what to do. e.g. "Find the 3 most urgent unread emails and summarize each in one line."'
+            placeholder='"Find the 3 most urgent unread emails and summarize each in one line."'
             rows={4}
-            className="w-full rounded bg-input border border-border px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+            className="w-full resize-none bg-transparent px-3 py-2 text-[15px] outline-none placeholder:text-muted-foreground"
           />
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-muted-foreground">Kora will plan + write code + execute in an isolated sandbox.</p>
-            <button disabled={busy} className="rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50">
-              {busy ? "reasoning…" : "$ ingest"}
-            </button>
-          </div>
-        </form>
-      </section>
+        </div>
+        <div className="flex items-center justify-between gap-3 px-2 pt-2">
+          <p className="font-serif-italic text-[13px] text-muted-foreground">
+            kora plans, writes code, runs it in an isolated sandbox.
+          </p>
+          <button
+            disabled={busy || !text.trim()}
+            className="btn-primary rounded-xl px-4 py-2 text-[13px] disabled:opacity-40"
+          >
+            {busy ? "reasoning…" : "ingest"}
+          </button>
+        </div>
+      </form>
 
       <section>
-        <h2 className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Recent signals</h2>
-        <div className="rounded border border-border divide-y divide-border">
-          {signals.length === 0 && <div className="p-4 text-sm text-muted-foreground">no signals yet.</div>}
+        <p className="eyebrow mb-3">recent signals</p>
+        <div className="glass-soft divide-y divide-border/60 rounded-2xl">
+          {signals.length === 0 && (
+            <div className="p-6 text-center text-[14px] text-muted-foreground">
+              <span className="font-serif-italic">nothing yet — your inbox is calm.</span>
+            </div>
+          )}
           {signals.map((s) => (
-            <div key={s.id} className="p-3 text-sm flex items-start gap-3">
-              <span className={`text-xs px-1.5 py-0.5 rounded border ${
-                s.status === "planned" ? "border-info text-info" :
-                s.status === "received" ? "border-warn text-warn" :
-                "border-border text-muted-foreground"
-              }`}>{s.status}</span>
-              <span className="text-xs text-muted-foreground">{s.source}</span>
-              <p className="flex-1 text-foreground line-clamp-2">{s.raw_text}</p>
-              <span className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleTimeString()}</span>
+            <div key={s.id} className="flex items-start gap-3 p-4 text-[14px]">
+              <span
+                className={`font-mono-tight rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+                  s.status === "planned" ? "border-info/40 text-info" :
+                  s.status === "received" ? "border-warn/40 text-warn" :
+                  "border-border text-muted-foreground"
+                }`}
+              >
+                {s.status}
+              </span>
+              <span className="font-mono-tight text-[11px] text-muted-foreground">{s.source}</span>
+              <p className="line-clamp-2 flex-1">{s.raw_text}</p>
+              <span className="font-mono-tight text-[11px] text-muted-foreground">
+                {new Date(s.created_at).toLocaleTimeString()}
+              </span>
             </div>
           ))}
         </div>
       </section>
-    </div>
+    </ModuleShell>
   );
 }

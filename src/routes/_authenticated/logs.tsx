@@ -1,40 +1,63 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { listTaskRuns } from "@/lib/agent.functions";
+import { ModuleShell, ModuleError } from "@/components/ModuleShell";
 
-const logsQO = queryOptions({ queryKey: ["logs"], queryFn: () => listTaskRuns(), refetchInterval: 3000 });
+const logsQO = queryOptions({ queryKey: ["logs"], queryFn: () => listTaskRuns(), refetchInterval: 3500 });
 
 export const Route = createFileRoute("/_authenticated/logs")({
   loader: ({ context }) => context.queryClient.ensureQueryData(logsQO),
   component: LogsPage,
+  errorComponent: ModuleError,
 });
 
 function LogsPage() {
   const { data: runs } = useSuspenseQuery(logsQO);
   return (
-    <div className="space-y-4">
-      <h1 className="text-lg text-primary">// logs</h1>
-      <div className="rounded border border-border bg-card overflow-hidden">
-        <table className="w-full text-xs">
-          <thead className="bg-input text-muted-foreground">
-            <tr><th className="p-2 text-left">time</th><th className="p-2 text-left">node</th><th className="p-2 text-left">tool</th><th className="p-2">attempt</th><th className="p-2">exit</th><th className="p-2">ms</th><th></th></tr>
+    <ModuleShell
+      eyebrow="logs"
+      title="execution trace"
+      caption={<>every sandbox run kora attempted, with exit codes and durations.</>}
+    >
+      <div className="glass-soft overflow-hidden rounded-2xl">
+        <table className="w-full text-[13px]">
+          <thead className="bg-foreground/[0.03] text-muted-foreground">
+            <tr>
+              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">time</th>
+              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">node</th>
+              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">tool</th>
+              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">attempt</th>
+              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">exit</th>
+              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">ms</th>
+              <th />
+            </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-y divide-border/50">
             {runs.map((r) => (
-              <tr key={r.id}>
-                <td className="p-2 text-muted-foreground">{new Date(r.created_at).toLocaleTimeString()}</td>
-                <td className="p-2">{r.node_id}</td>
-                <td className="p-2 text-primary">{r.tool_name}</td>
-                <td className="p-2 text-center">{r.attempt}</td>
-                <td className={`p-2 text-center ${r.exit_code === 0 ? "text-ok" : "text-error"}`}>{r.exit_code}</td>
-                <td className="p-2 text-center text-muted-foreground">{r.duration_ms}</td>
-                <td className="p-2"><Link to="/plans/$id" params={{ id: r.plan_id! }} className="text-info underline">plan</Link></td>
+              <tr key={r.id} className="hover:bg-foreground/[0.02]">
+                <td className="p-3 font-mono-tight text-muted-foreground">{new Date(r.created_at).toLocaleTimeString()}</td>
+                <td className="p-3">{r.node_id}</td>
+                <td className="p-3 text-foreground">{r.tool_name}</td>
+                <td className="p-3 text-center">{r.attempt}</td>
+                <td className={`p-3 text-center font-mono-tight ${r.exit_code === 0 ? "text-ok" : "text-error"}`}>{r.exit_code}</td>
+                <td className="p-3 text-center font-mono-tight text-muted-foreground">{r.duration_ms}</td>
+                <td className="p-3">
+                  {r.plan_id && (
+                    <Link to="/plans/$id" params={{ id: r.plan_id }} className="text-info underline-offset-4 hover:underline">
+                      plan
+                    </Link>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {runs.length === 0 && <div className="p-4 text-sm text-muted-foreground">no runs yet.</div>}
+        {runs.length === 0 && (
+          <div className="p-8 text-center text-[14px] text-muted-foreground">
+            <span className="font-serif-italic">no runs yet.</span>
+          </div>
+        )}
       </div>
-    </div>
+    </ModuleShell>
   );
 }

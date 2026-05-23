@@ -1,13 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Inria+Serif:ital,wght@1,300;1,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Inria Serif", ui-serif, Georgia, serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: var(--background);
@@ -59,40 +59,42 @@
   --color-error: var(--error);
   --color-info: var(--info);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --ease-glass: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 :root {
-  /* light obsidian palette */
+  /* obsidian + ember */
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.12 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.12 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.12 0 0);
-  --primary: oklch(0.7 0.2 45);            /* ember-500 */
+  --primary: oklch(0.7 0.2 45);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.96 0 0);
   --secondary-foreground: oklch(0.18 0 0);
   --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.5 0 0);
+  --muted-foreground: oklch(0.46 0 0);
   --accent: oklch(0.95 0.03 55);
   --accent-foreground: oklch(0.32 0.12 38);
   --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0 0);
+  --border: oklch(0.9 0 0);
   --input: oklch(0.96 0 0);
   --ring: oklch(0.7 0.2 45);
 
-  --ok: oklch(0.65 0.16 150);
+  --ok: oklch(0.62 0.16 150);
   --warn: oklch(0.78 0.16 75);
   --error: oklch(0.6 0.22 25);
   --info: oklch(0.62 0.12 240);
 
-  letter-spacing: -0.004em;
+  letter-spacing: -0.012em;
 }
 
 .dark {
@@ -112,7 +114,7 @@
   --accent-foreground: oklch(0.9 0.08 52);
   --destructive: oklch(0.62 0.22 25);
   --destructive-foreground: oklch(0.96 0 0);
-  --border: oklch(0.2 0 0);
+  --border: oklch(0.22 0 0);
   --input: oklch(0.16 0 0);
   --ring: oklch(0.77 0.17 48);
 }
@@ -121,9 +123,11 @@ html, body { background: var(--background); color: var(--foreground); }
 body {
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
-  letter-spacing: -0.004em;
+  letter-spacing: -0.012em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 500; }
 * { border-color: var(--border); }
 ::selection { background: color-mix(in oklab, var(--primary) 30%, transparent); }
 
@@ -131,56 +135,90 @@ body {
 .font-serif-italic {
   font-family: var(--font-serif);
   font-style: italic;
-  font-weight: 300;
-  letter-spacing: -0.005em;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 .font-mono-tight {
   font-family: var(--font-mono);
-  letter-spacing: -0.002em;
+  letter-spacing: -0.012em;
 }
 
-/* Liquid glass surface */
+/* ──── LIQUID GLASS (no frost) ──── */
+/* True iOS26 liquid glass: high transparency, slight saturation, refractive edge */
 .glass {
-  background: color-mix(in oklab, var(--card) 70%, transparent);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid color-mix(in oklab, var(--foreground) 6%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 55%, transparent) 0%,
+    color-mix(in oklab, var(--card) 35%, transparent) 100%
+  );
+  backdrop-filter: blur(28px) saturate(180%) contrast(105%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) contrast(105%);
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
   box-shadow:
-    0 1px 0 color-mix(in oklab, white 40%, transparent) inset,
-    0 24px 60px -30px color-mix(in oklab, var(--foreground) 30%, transparent),
-    0 2px 8px -2px color-mix(in oklab, var(--foreground) 8%, transparent);
+    0 1px 0 color-mix(in oklab, white 55%, transparent) inset,
+    0 0 0 1px color-mix(in oklab, white 10%, transparent) inset,
+    0 30px 60px -30px color-mix(in oklab, var(--foreground) 28%, transparent),
+    0 4px 12px -4px color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 .dark .glass {
-  background: color-mix(in oklab, var(--card) 60%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 50%, transparent) 0%,
+    color-mix(in oklab, var(--card) 30%, transparent) 100%
+  );
   box-shadow:
     0 1px 0 color-mix(in oklab, white 6%, transparent) inset,
-    0 30px 80px -30px black,
-    0 2px 8px -2px black;
+    0 0 0 1px color-mix(in oklab, white 3%, transparent) inset,
+    0 40px 80px -30px black,
+    0 4px 12px -4px black;
 }
 .glass-soft {
-  background: color-mix(in oklab, var(--card) 50%, transparent);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
-  border: 1px solid color-mix(in oklab, var(--foreground) 5%, transparent);
+  background: color-mix(in oklab, var(--card) 40%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+.glass-pill {
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, white 40%, transparent) inset,
+    0 12px 28px -16px color-mix(in oklab, var(--foreground) 18%, transparent);
 }
 
-/* Cloudy monochrome gradient backdrop */
+/* ──── NEURAL EXPRESSIVE: soft chromatic gradient backdrop ──── */
 .kora-cloud-bg {
   background:
-    radial-gradient(60% 50% at 20% 10%, color-mix(in oklab, var(--primary) 18%, transparent), transparent 70%),
-    radial-gradient(50% 40% at 90% 20%, color-mix(in oklab, var(--obsidian-300) 60%, transparent), transparent 75%),
-    radial-gradient(70% 60% at 60% 100%, color-mix(in oklab, var(--obsidian-200) 90%, transparent), transparent 70%),
+    radial-gradient(60% 50% at 18% 8%, color-mix(in oklab, var(--primary) 26%, transparent), transparent 70%),
+    radial-gradient(55% 45% at 92% 18%, color-mix(in oklab, oklch(0.78 0.14 320) 28%, transparent), transparent 75%),
+    radial-gradient(60% 60% at 75% 95%, color-mix(in oklab, oklch(0.82 0.12 210) 30%, transparent), transparent 72%),
+    radial-gradient(70% 60% at 30% 100%, color-mix(in oklab, var(--obsidian-200) 60%, transparent), transparent 70%),
     var(--background);
+  position: relative;
+}
+.kora-cloud-bg::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(2px 2px at 20% 30%, color-mix(in oklab, var(--foreground) 5%, transparent) 50%, transparent 51%),
+    radial-gradient(2px 2px at 70% 60%, color-mix(in oklab, var(--foreground) 4%, transparent) 50%, transparent 51%);
+  background-size: 240px 240px;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: overlay;
 }
 .dark .kora-cloud-bg {
   background:
-    radial-gradient(60% 50% at 20% 10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%),
-    radial-gradient(50% 40% at 90% 20%, color-mix(in oklab, var(--obsidian-700) 80%, transparent), transparent 75%),
-    radial-gradient(70% 60% at 60% 100%, color-mix(in oklab, var(--obsidian-800) 100%, transparent), transparent 70%),
+    radial-gradient(60% 50% at 18% 8%, color-mix(in oklab, var(--primary) 18%, transparent), transparent 70%),
+    radial-gradient(55% 45% at 92% 18%, color-mix(in oklab, oklch(0.55 0.18 320) 22%, transparent), transparent 75%),
+    radial-gradient(60% 60% at 75% 95%, color-mix(in oklab, oklch(0.52 0.14 210) 24%, transparent), transparent 72%),
+    radial-gradient(70% 60% at 30% 100%, color-mix(in oklab, var(--obsidian-800) 100%, transparent), transparent 70%),
     var(--background);
 }
 
-/* Thinking dots */
+/* ──── Motion: thinking dots ──── */
 @keyframes thinkPulse {
   0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
   40% { opacity: 1; transform: translateY(-2px); }
@@ -194,7 +232,7 @@ body {
 .think-dot:nth-child(2) { animation-delay: 0.15s; }
 .think-dot:nth-child(3) { animation-delay: 0.3s; }
 
-/* Shimmering "thinking" text */
+/* shimmering thinking text */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -213,23 +251,82 @@ body {
   animation: shimmer 2.4s linear infinite;
 }
 
-/* Splash */
-@keyframes splashFadeOut {
-  to { opacity: 0; visibility: hidden; }
-}
+/* ──── Splash ──── */
+@keyframes splashFadeOut { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 @keyframes splashRise {
-  from { opacity: 0; transform: translateY(8px); letter-spacing: 0.1em; }
-  to   { opacity: 1; transform: translateY(0);    letter-spacing: -0.02em; }
+  from { opacity: 0; transform: translateY(10px); filter: blur(4px); letter-spacing: 0.08em; }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0);    letter-spacing: -0.025em; }
 }
 @keyframes splashRing {
   0% { transform: scale(0.6); opacity: 0; }
-  60% { opacity: 0.6; }
-  100% { transform: scale(1.6); opacity: 0; }
+  60% { opacity: 0.5; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+@keyframes orbDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -10px, 0) scale(1.04); }
 }
 
-/* Soft hollow shadow utility */
+/* ──── Page enter — soft expressive ──── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}
+.page-enter > * { animation: pageEnter 520ms var(--ease-glass) both; }
+.page-enter > *:nth-child(2) { animation-delay: 60ms; }
+.page-enter > *:nth-child(3) { animation-delay: 120ms; }
+.page-enter > *:nth-child(4) { animation-delay: 180ms; }
+.page-enter > *:nth-child(n+5) { animation-delay: 220ms; }
+
+/* ──── micro-interactions ──── */
+.lift {
+  transition: transform 320ms var(--ease-glass), box-shadow 320ms var(--ease-glass);
+}
+.lift:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, white 60%, transparent) inset,
+    0 24px 40px -20px color-mix(in oklab, var(--foreground) 20%, transparent);
+}
+.btn-primary {
+  background: linear-gradient(180deg, var(--primary) 0%, color-mix(in oklab, var(--primary) 80%, black) 100%);
+  color: var(--primary-foreground);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, white 50%, transparent) inset,
+    0 8px 20px -8px color-mix(in oklab, var(--primary) 50%, transparent);
+  transition: transform 180ms var(--ease-glass), box-shadow 180ms var(--ease-glass), filter 180ms var(--ease-glass);
+}
+.btn-primary:hover { filter: brightness(1.05); transform: translateY(-0.5px); }
+.btn-primary:active { transform: translateY(0); filter: brightness(0.96); }
+
+.btn-ghost {
+  transition: background 180ms var(--ease-glass), color 180ms var(--ease-glass);
+}
+
+/* input refinement */
+.field {
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+  transition: border-color 180ms var(--ease-glass), box-shadow 180ms var(--ease-glass), background 180ms var(--ease-glass);
+}
+.field:focus, .field:focus-within {
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
+  background: color-mix(in oklab, var(--card) 85%, transparent);
+}
+
+/* soft shadow */
 .shadow-soft {
   box-shadow:
     0 1px 1px color-mix(in oklab, var(--foreground) 4%, transparent),
     0 20px 40px -24px color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+
+/* ──── module header chip ──── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
