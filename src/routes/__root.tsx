@@ -17,10 +17,16 @@ import appCss from "../styles.css?url";
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center kora-cloud-bg px-4">
-      <div className="glass max-w-md rounded-2xl p-8 text-center">
-        <h1 className="text-5xl tracking-tight">404</h1>
-        <p className="font-serif-italic mt-2 text-muted-foreground">this page drifted away</p>
-        <Link to="/" className="mt-6 inline-block text-primary underline-offset-4 hover:underline">
+      <div className="glass max-w-md rounded-3xl p-10 text-center">
+        <p className="eyebrow">404</p>
+        <h1 className="mt-2 text-5xl tracking-tight">drifted away</h1>
+        <p className="font-serif-italic mt-3 text-muted-foreground">
+          this page isn't where you left it.
+        </p>
+        <Link
+          to="/"
+          className="btn-primary mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm"
+        >
           go home
         </Link>
       </div>
@@ -33,14 +39,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
     <div className="flex min-h-screen items-center justify-center kora-cloud-bg px-4">
-      <div className="glass max-w-lg rounded-2xl p-6">
-        <h1 className="text-lg font-medium text-destructive">something broke</h1>
-        <pre className="font-mono-tight mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+      <div className="glass max-w-lg rounded-3xl p-8">
+        <p className="eyebrow">something broke</p>
+        <h1 className="mt-2 text-2xl tracking-tight">a small hiccup</h1>
+        <pre className="font-mono-tight mt-4 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
 {String(error?.message ?? error)}
         </pre>
         <button
           onClick={() => { router.invalidate(); reset(); }}
-          className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground"
+          className="btn-primary mt-5 rounded-xl px-4 py-2 text-sm"
         >try again</button>
       </div>
     </div>
@@ -88,7 +95,7 @@ function RootComponent() {
       <Splash />
       <AuthSync />
       <Outlet />
-      <Toaster position="bottom-center" />
+      <Toaster position="bottom-center" toastOptions={{ className: "glass-soft !rounded-2xl" }} />
     </QueryClientProvider>
   );
 }

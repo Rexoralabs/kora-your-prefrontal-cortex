@@ -1,41 +1,54 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { listSkills } from "@/lib/agent.functions";
+import { ModuleShell, ModuleError } from "@/components/ModuleShell";
 
 const skillsQO = queryOptions({ queryKey: ["skills"], queryFn: () => listSkills() });
 
 export const Route = createFileRoute("/_authenticated/skills")({
   loader: ({ context }) => context.queryClient.ensureQueryData(skillsQO),
   component: SkillsPage,
+  errorComponent: ModuleError,
 });
 
 function SkillsPage() {
   const { data: skills } = useSuspenseQuery(skillsQO);
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-lg text-primary">// skills</h1>
-        <p className="text-xs text-muted-foreground">Autonomously written code Kora has learned and cached.</p>
-      </div>
+    <ModuleShell
+      eyebrow="skills"
+      title="learned skills"
+      caption={<>code kora wrote, validated, and cached — promoted from successful runs.</>}
+    >
       <div className="space-y-3">
-        {skills.length === 0 && <p className="text-sm text-muted-foreground">no skills learned yet.</p>}
+        {skills.length === 0 && (
+          <div className="glass-soft rounded-2xl p-8 text-center text-[14px] text-muted-foreground">
+            <span className="font-serif-italic">no skills learned yet — ask kora to do something.</span>
+          </div>
+        )}
         {skills.map((s) => (
-          <details key={s.id} className="rounded border border-border bg-card">
-            <summary className="cursor-pointer p-3 flex items-center gap-3 text-sm">
-              <span className="text-primary">{s.name}</span>
-              <span className="text-xs text-muted-foreground">{s.language}</span>
-              <span className="ml-auto text-xs">
-                <span className="text-ok">✓{s.success_count}</span>{" "}
-                <span className="text-error">✗{s.fail_count}</span>
+          <details key={s.id} className="glass-soft rounded-2xl overflow-hidden">
+            <summary className="lift flex cursor-pointer items-center gap-3 p-4 text-[15px]">
+              <span className="text-foreground">{s.name}</span>
+              <span className="font-mono-tight rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                {s.language}
+              </span>
+              <span className="font-serif-italic ml-auto text-[13px]">
+                <span className="text-ok">✓ {s.success_count}</span>
+                <span className="mx-1 text-muted-foreground">·</span>
+                <span className="text-error">✗ {s.fail_count}</span>
               </span>
             </summary>
-            <p className="px-3 pb-2 text-xs text-muted-foreground">{s.description}</p>
+            {s.description && (
+              <p className="font-serif-italic px-4 pb-2 text-[14px] text-muted-foreground">{s.description}</p>
+            )}
             {s.code && (
-              <pre className="m-3 max-h-80 overflow-auto rounded bg-input p-3 text-xs whitespace-pre-wrap">{s.code}</pre>
+              <pre className="font-mono-tight m-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-foreground/[0.04] p-4 text-[12px] leading-relaxed">
+                {s.code}
+              </pre>
             )}
           </details>
         ))}
       </div>
-    </div>
+    </ModuleShell>
   );
 }
