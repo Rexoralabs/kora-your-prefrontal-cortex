@@ -24,6 +24,7 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as ApiPublicIngestRouteImport } from './routes/api/public/ingest'
 import { Route as AuthenticatedPlansIdRouteImport } from './routes/_authenticated/plans.$id'
 import { Route as ApiPublicCronChronosRouteImport } from './routes/api/public/cron/chronos'
+import { Route as ApiPublicChatStreamRouteImport } from './routes/api/public/chat.stream'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -99,6 +100,11 @@ const ApiPublicCronChronosRoute = ApiPublicCronChronosRouteImport.update({
   path: '/api/public/cron/chronos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicChatStreamRoute = ApiPublicChatStreamRouteImport.update({
+  id: '/api/public/chat/stream',
+  path: '/api/public/chat/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/vault': typeof AuthenticatedVaultRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
+  '/api/public/chat/stream': typeof ApiPublicChatStreamRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
 export interface FileRoutesByTo {
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/vault': typeof AuthenticatedVaultRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
+  '/api/public/chat/stream': typeof ApiPublicChatStreamRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
 export interface FileRoutesById {
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
   '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
+  '/api/public/chat/stream': typeof ApiPublicChatStreamRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
 export interface FileRouteTypes {
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/plans/$id'
     | '/api/public/ingest'
+    | '/api/public/chat/stream'
     | '/api/public/cron/chronos'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/plans/$id'
     | '/api/public/ingest'
+    | '/api/public/chat/stream'
     | '/api/public/cron/chronos'
   id:
     | '__root__'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vault'
     | '/_authenticated/plans/$id'
     | '/api/public/ingest'
+    | '/api/public/chat/stream'
     | '/api/public/cron/chronos'
   fileRoutesById: FileRoutesById
 }
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiPublicIngestRoute: typeof ApiPublicIngestRoute
+  ApiPublicChatStreamRoute: typeof ApiPublicChatStreamRoute
   ApiPublicCronChronosRoute: typeof ApiPublicCronChronosRoute
 }
 
@@ -317,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronChronosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/chat/stream': {
+      id: '/api/public/chat/stream'
+      path: '/api/public/chat/stream'
+      fullPath: '/api/public/chat/stream'
+      preLoaderRoute: typeof ApiPublicChatStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -364,6 +384,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiPublicIngestRoute: ApiPublicIngestRoute,
+  ApiPublicChatStreamRoute: ApiPublicChatStreamRoute,
   ApiPublicCronChronosRoute: ApiPublicCronChronosRoute,
 }
 export const routeTree = rootRouteImport
