@@ -44,7 +44,6 @@ function ChatPage() {
   const createFn = useServerFn(createThread);
   const delFn = useServerFn(deleteThread);
   const searchFn = useServerFn(searchThreads);
-  const uploadFn = useServerFn(createSignedUpload);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("chat");
