@@ -190,18 +190,17 @@ function ThreadView({
   threadId,
   mode,
   setMode,
-  uploadFn,
   onOpenPlan,
 }: {
   threadId: string;
   mode: Mode;
   setMode: (m: Mode) => void;
-  uploadFn: ReturnType<typeof useServerFn<typeof createSignedUpload>>;
   onOpenPlan: (id: string) => void;
 }) {
   const qc = useQueryClient();
   const getFn = useServerFn(getThread);
   const sendFn = useServerFn(sendChatMessage);
+  const uploadFn = useServerFn(createSignedUpload);
 
   const threadQ = useQuery({
     queryKey: ["chat-thread", threadId],
