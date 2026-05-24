@@ -520,7 +520,7 @@ function AssistantBubble({ text, streaming }: { text: string; streaming?: boolea
       <div className="min-w-0 flex-1">
         <div className="glass-soft rounded-2xl rounded-tl-md px-4 py-3 text-[15px]">
           {text ? (
-            <div className="prose prose-sm max-w-none prose-p:my-2 prose-headings:my-2 prose-pre:bg-foreground/5 prose-pre:text-foreground prose-code:text-foreground">
+            <div className="md-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
             </div>
           ) : (
