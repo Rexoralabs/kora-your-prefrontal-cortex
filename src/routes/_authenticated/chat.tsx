@@ -152,7 +152,6 @@ function ChatPage() {
               threadId={activeId}
               mode={mode}
               setMode={setMode}
-              uploadFn={uploadFn}
               onOpenPlan={(id) => nav({ to: "/plans/$id", params: { id } })}
             />
           ) : (
