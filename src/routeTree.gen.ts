@@ -22,6 +22,7 @@ import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/l
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as ApiPublicIngestRouteImport } from './routes/api/public/ingest'
+import { Route as ApiChatStreamRouteImport } from './routes/api/chat.stream'
 import { Route as AuthenticatedPlansIdRouteImport } from './routes/_authenticated/plans.$id'
 import { Route as ApiPublicCronChronosRouteImport } from './routes/api/public/cron/chronos'
 
@@ -89,6 +90,11 @@ const ApiPublicIngestRoute = ApiPublicIngestRouteImport.update({
   path: '/api/public/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatStreamRoute = ApiChatStreamRouteImport.update({
+  id: '/api/chat/stream',
+  path: '/api/chat/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedPlansIdRoute = AuthenticatedPlansIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/skills': typeof AuthenticatedSkillsRoute
   '/vault': typeof AuthenticatedVaultRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
+  '/api/chat/stream': typeof ApiChatStreamRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/skills': typeof AuthenticatedSkillsRoute
   '/vault': typeof AuthenticatedVaultRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
+  '/api/chat/stream': typeof ApiChatStreamRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
   '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
+  '/api/chat/stream': typeof ApiChatStreamRoute
   '/api/public/ingest': typeof ApiPublicIngestRoute
   '/api/public/cron/chronos': typeof ApiPublicCronChronosRoute
 }
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/vault'
     | '/plans/$id'
+    | '/api/chat/stream'
     | '/api/public/ingest'
     | '/api/public/cron/chronos'
   fileRoutesByTo: FileRoutesByTo
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/vault'
     | '/plans/$id'
+    | '/api/chat/stream'
     | '/api/public/ingest'
     | '/api/public/cron/chronos'
   id:
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/_authenticated/skills'
     | '/_authenticated/vault'
     | '/_authenticated/plans/$id'
+    | '/api/chat/stream'
     | '/api/public/ingest'
     | '/api/public/cron/chronos'
   fileRoutesById: FileRoutesById
@@ -206,6 +218,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiChatStreamRoute: typeof ApiChatStreamRoute
   ApiPublicIngestRoute: typeof ApiPublicIngestRoute
   ApiPublicCronChronosRoute: typeof ApiPublicCronChronosRoute
 }
@@ -303,6 +316,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat/stream': {
+      id: '/api/chat/stream'
+      path: '/api/chat/stream'
+      fullPath: '/api/chat/stream'
+      preLoaderRoute: typeof ApiChatStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/plans/$id': {
       id: '/_authenticated/plans/$id'
       path: '/$id'
@@ -363,9 +383,20 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiChatStreamRoute: ApiChatStreamRoute,
   ApiPublicIngestRoute: ApiPublicIngestRoute,
   ApiPublicCronChronosRoute: ApiPublicCronChronosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
