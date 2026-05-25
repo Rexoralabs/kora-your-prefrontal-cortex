@@ -37,13 +37,17 @@ export const updateProfile = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const patch: Record<string, any> = {};
+    const patch: {
+      display_name?: string | null;
+      avatar_url?: string | null;
+      preferences?: any;
+    } = {};
     if (data.display_name !== undefined) patch.display_name = data.display_name;
     if (data.avatar_url !== undefined) patch.avatar_url = data.avatar_url;
     if (data.preferences !== undefined) patch.preferences = data.preferences;
     const { error } = await supabaseAdmin
       .from("profiles")
-      .update(patch)
+      .update(patch as any)
       .eq("user_id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
