@@ -15,14 +15,14 @@ function SkillsPage() {
   const { data: skills } = useSuspenseQuery(skillsQO);
   return (
     <ModuleShell
-      eyebrow="skills"
-      title="learned skills"
-      caption={<>code kora wrote, validated, and cached — promoted from successful runs.</>}
+      eyebrow="Skills"
+      title="Learned Skills"
+      caption={<>Code Kora wrote, validated, and cached — promoted from successful runs.</>}
     >
       <div className="space-y-3">
         {skills.length === 0 && (
           <div className="glass-soft rounded-2xl p-8 text-center text-[14px] text-muted-foreground">
-            <span className="font-serif-italic">no skills learned yet — ask kora to do something.</span>
+            <span className="font-serif-italic">No skills learned yet — ask Kora to do something.</span>
           </div>
         )}
         {skills.map((s) => (

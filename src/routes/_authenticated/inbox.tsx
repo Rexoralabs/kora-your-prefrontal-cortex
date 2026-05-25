@@ -42,9 +42,9 @@ function InboxPage() {
 
   return (
     <ModuleShell
-      eyebrow="inbox"
-      title="capture a signal"
-      caption={<>drop a thought, a task, or a worry — kora plans the rest.</>}
+      eyebrow="Inbox"
+      title="Capture a Signal"
+      caption={<>Drop a thought, a task, or a worry — Kora plans the rest.</>}
     >
       <form onSubmit={submit} className="glass rounded-2xl p-2">
         <div className="field rounded-xl p-2">
@@ -58,23 +58,23 @@ function InboxPage() {
         </div>
         <div className="flex items-center justify-between gap-3 px-2 pt-2">
           <p className="font-serif-italic text-[13px] text-muted-foreground">
-            kora plans, writes code, runs it in an isolated sandbox.
+            Kora plans, writes code, runs it in an isolated sandbox.
           </p>
           <button
             disabled={busy || !text.trim()}
             className="btn-primary rounded-xl px-4 py-2 text-[13px] disabled:opacity-40"
           >
-            {busy ? "reasoning…" : "ingest"}
+            {busy ? "Reasoning…" : "Ingest"}
           </button>
         </div>
       </form>
 
       <section>
-        <p className="eyebrow mb-3">recent signals</p>
+        <p className="eyebrow mb-3">Recent Signals</p>
         <div className="glass-soft divide-y divide-border/60 rounded-2xl">
           {signals.length === 0 && (
             <div className="p-6 text-center text-[14px] text-muted-foreground">
-              <span className="font-serif-italic">nothing yet — your inbox is calm.</span>
+              <span className="font-serif-italic">Nothing yet — your inbox is calm.</span>
             </div>
           )}
           {signals.map((s) => (

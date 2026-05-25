@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedRulesRouteImport } from './routes/_authenticated/rules'
 import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
 import { Route as AuthenticatedNowRouteImport } from './routes/_authenticated/now'
@@ -48,6 +49,11 @@ const AuthenticatedVaultRoute = AuthenticatedVaultRouteImport.update({
 const AuthenticatedSkillsRoute = AuthenticatedSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedRulesRoute = AuthenticatedRulesRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/now': typeof AuthenticatedNowRoute
   '/plans': typeof AuthenticatedPlansRouteWithChildren
   '/rules': typeof AuthenticatedRulesRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/vault': typeof AuthenticatedVaultRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/now': typeof AuthenticatedNowRoute
   '/plans': typeof AuthenticatedPlansRouteWithChildren
   '/rules': typeof AuthenticatedRulesRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/vault': typeof AuthenticatedVaultRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/_authenticated/now': typeof AuthenticatedNowRoute
   '/_authenticated/plans': typeof AuthenticatedPlansRouteWithChildren
   '/_authenticated/rules': typeof AuthenticatedRulesRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
   '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/now'
     | '/plans'
     | '/rules'
+    | '/settings'
     | '/skills'
     | '/vault'
     | '/plans/$id'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/now'
     | '/plans'
     | '/rules'
+    | '/settings'
     | '/skills'
     | '/vault'
     | '/plans/$id'
@@ -206,6 +217,7 @@ export interface FileRouteTypes {
     | '/_authenticated/now'
     | '/_authenticated/plans'
     | '/_authenticated/rules'
+    | '/_authenticated/settings'
     | '/_authenticated/skills'
     | '/_authenticated/vault'
     | '/_authenticated/plans/$id'
@@ -258,6 +270,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills'
       preLoaderRoute: typeof AuthenticatedSkillsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/rules': {
@@ -359,6 +378,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNowRoute: typeof AuthenticatedNowRoute
   AuthenticatedPlansRoute: typeof AuthenticatedPlansRouteWithChildren
   AuthenticatedRulesRoute: typeof AuthenticatedRulesRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSkillsRoute: typeof AuthenticatedSkillsRoute
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
 }
@@ -371,6 +391,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNowRoute: AuthenticatedNowRoute,
   AuthenticatedPlansRoute: AuthenticatedPlansRouteWithChildren,
   AuthenticatedRulesRoute: AuthenticatedRulesRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSkillsRoute: AuthenticatedSkillsRoute,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,
 }
@@ -390,13 +411,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

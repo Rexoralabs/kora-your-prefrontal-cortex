@@ -4,13 +4,15 @@ const KEY = "kora.splash.shown";
 
 /**
  * Splash shows once per browser session — first entry only.
- * It does NOT show on route changes, refreshes within a session, or returns.
+ * Never fires on /login (so a bounced redirect can't re-trigger it).
  */
 export function Splash() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Skip on auth pages so a redirect loop can't flash it.
+    if (window.location.pathname.startsWith("/login")) return;
     try {
       const already = sessionStorage.getItem(KEY);
       if (already) return;
@@ -60,7 +62,7 @@ export function Splash() {
           className="mt-1 font-serif-italic text-base text-muted-foreground"
           style={{ animation: "splashRise 840ms 140ms cubic-bezier(.2,.7,.2,1) both" }}
         >
-          your quiet co-pilot
+          Your Quiet Co-Pilot
         </p>
       </div>
     </div>

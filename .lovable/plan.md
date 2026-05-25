@@ -1,130 +1,61 @@
+# Plan: Login Fix, Title Case, Bundle 3
 
-# Project Kora on Lovable + E2B — Autonomous Skill Factory
+## 1. Fix the login redirect loop
 
-Accepted. The fixed-toolset model is replaced with a real code-gen sandbox via the **E2B Sandbox SDK**. TanStack Start runs the brain on Cloudflare Workers; E2B runs the hands as ephemeral Linux micro-VMs. Self-heal loop stays intact end-to-end.
+**Symptom:** Submit credentials → brief load → splash flashes → bounced back to `/login`.
 
-## Architecture
+**Root cause:** `_authenticated.beforeLoad` awaits `supabase.auth.getUser()` (network call to `/auth/v1/user`) the instant `navigate({ to: "/chat" })` fires. On a cold worker / slow link, that call returns no user before the new session token is fully attached, so the guard throws `redirect({ to: "/login" })`. The `Splash` component then re-mounts because `sessionStorage` was cleared by the failed nav, producing the flash.
 
-```text
-Browser (React control panel)
-        │
-        ▼
-TanStack Start (Workers) ── Lovable Cloud (Postgres + pgvector)
-        │                          │
-        │ createServerFn          tables: signals, user_state, memory_chunks,
-        │                                 execution_plans, task_runs, skills,
-        │                                 skill_versions, chronos_rules
-        ▼
-[Engine 1] Ingestion   ── POST /api/public/ingest  (HMAC)
-                          POST /api/public/cron/chronos  (pg_cron, 60s)
-[Engine 2] Memory      ── pgvector (gemini-embedding-001, 768d)
-                          + UserState ledger row
-[Engine 3] Reasoner    ── Lovable AI Gateway (gemini-3-flash-preview / gpt-5)
-                          tool-calling → Zod-validated ExecutionPlan DAG
-[Engine 4] Executor    ── topo-sort DAG → for each node:
-                            1. lookup `skills` cache (by tool_name + signature)
-                            2. if miss → Developer-State LLM writes Python/TS
-                            3. spawn E2B Sandbox, mount inputs, run code
-                            4. capture stdout / stderr / exit_code / artifacts
-                            5. if exit_code != 0 → feed stderr back to LLM,
-                               regenerate, retry (max 3)
-                            6. on success → persist as skill_version,
-                               promote to active skill
-```
+**Fix:**
+- Replace the network `getUser()` check in `_authenticated.beforeLoad` with the synchronous `getSession()` — it reads from `localStorage` and is the canonical "is there a token?" check. Only treat absence of a session as unauthenticated; never redirect on a transient network error.
+- In `login.tsx`, after `signInWithPassword` resolves, do not navigate manually. Instead `await supabase.auth.getSession()` to confirm the session is persisted, then `router.invalidate()` + `navigate({ to: "/chat", replace: true })`. The `replace` kills the back-button bounce, and invalidate makes the guard re-evaluate with the fresh session.
+- Mirror the same change in `index.tsx` (root redirect) — use `getSession()`, not `getUser()`.
+- Harden `Splash`: gate on `sessionStorage` *and* skip rendering when the current path is `/login` (so a bounce never re-triggers the animation).
 
-## E2B integration
+## 2. Title Case for all headings
 
-- Add `@e2b/code-interpreter` (works on Workers — pure HTTP/WS client, no native deps).
-- New `E2B_API_KEY` runtime secret (user will be prompted via `add_secret`).
-- Server-only helper `src/agent/sandbox/e2b.server.ts` exposes:
-  - `runPython(code, { files?, env?, timeoutMs })`
-  - `runBash(cmd, opts)`
-  - `installAndRun(pkgs, code, opts)`
-- Sandbox lifecycle: one ephemeral sandbox per task-node attempt; killed at end of `createServerFn` invocation. No long-lived sandbox state on Workers.
-- Outbound network from the sandbox is allowed (that is the whole point — Gmail API, web scraping, etc.). Per-skill allowlist enforced by the Reasoner prompt + recorded in `skills.network_policy`.
-- Secrets for the user's third-party APIs (Gmail OAuth refresh token, etc.) are pulled from Lovable Cloud at execution time and injected into the sandbox `env` per run — never baked into stored skill code.
+Audit every `<h1>`/`<h2>`/`<h3>` and equivalent display text (page titles, card titles, module section headers, dialog titles, the splash tagline). Convert from current lowercase styling to Title Case at the source string level (not via CSS `text-transform`, so it reads correctly to screen readers and in og:title).
 
-## Database (Lovable Cloud, RLS scoped to `auth.uid()`)
+Scope: all files under `src/routes/_authenticated/*`, `src/routes/login.tsx`, `src/routes/__root.tsx` (404 / error pages), `src/components/Splash.tsx`, `ModuleShell.tsx`. Keep brand mark `kora` lowercase (it's a logotype).
 
-- `signals` — id, user_id, source, raw_text, priority, status, created_at
-- `user_state` — user_id PK, focus, last_active, flags jsonb
-- `memory_chunks` — id, user_id, text, embedding vector(768), metadata jsonb
-- `execution_plans` — id, signal_id, dag jsonb, status, created_at
-- `task_runs` — id, plan_id, node_id, tool_name, input jsonb, output jsonb, stdout, stderr, exit_code, status, attempt, duration_ms
-- `skills` — id, user_id, name, description, signature_hash, language (python|bash|node), entrypoint, network_policy jsonb, active_version_id, success_count, fail_count
-- `skill_versions` — id, skill_id, code text, requirements text, generated_by_model, parent_version_id, created_at, validated_at
-- `chronos_rules` — id, user_id, cron, condition jsonb, trigger_text
-- `vault_secrets` — id, user_id, name, value (encrypted) — per-user third-party creds the sandbox can request
+## 3. Bundle 3 — Agentic powers + Settings + module verification
 
-Extensions: `vector`, `pg_cron`, `pgcrypto`.
+### 3a. Settings module (new)
+- New route `src/routes/_authenticated/settings.tsx` with tabs:
+  - **Profile** — display name, avatar (stored in new `profiles` table linked to `auth.users`).
+  - **Preferences** — chat default mode, splash on/off, theme density.
+  - **Account** — change password, sign out everywhere.
+- Add `Settings` tab to the top nav in `_authenticated.tsx`.
+- Migration: `profiles` table (`user_id` FK, `display_name`, `avatar_url`, `preferences jsonb`) with RLS (own row only) + trigger to auto-insert on signup.
 
-## Server functions / routes
+### 3b. Agentic powers (using Lovable AI for sub-agents)
+- **Sub-agent orchestration:** extend `src/agent/reasoner.server.ts` so a plan node can spawn a child reasoner call with its own scratch context, returning a structured result to the parent. All calls go through `chat()` in `llm.server.ts` (single `LOVABLE_API_KEY`).
+- **Browser/URL skill:** new skill `open_url` that returns a structured action the chat UI renders as a button (`Open <site>`) — opens in a new tab on click. Purely client-side execution; agent emits the intent.
+- **Email skill:** new skill `send_email` that calls a TanStack server fn → Lovable AI Gateway is not an email provider, so wire it via a `resend` API call. Requires `RESEND_API_KEY` secret — I'll request it via `add_secret` when implementing.
+- **Proactive nudges:** the existing `/api/public/cron/chronos.ts` route already exists; wire it to scan `chronos_rules`, run matching ones through the reasoner, and write results into `signals` so they surface in `/inbox`.
 
-`src/lib/*.functions.ts` (auth-protected via `requireSupabaseAuth`):
-- `ingestSignal`, `runReasoner`, `runExecutor`, `executeNode`
-- `runChronos` (public route, HMAC-signed cron caller)
-- `listSignals`, `getPlan`, `listSkills`, `getSkillVersion`, `addMemory`, `searchMemory`, `upsertChronosRule`, `setVaultSecret`
+### 3c. Module sweep — make every existing module actually work
+Walk each authed route and verify the create/read/update/delete paths work end-to-end against the live DB. Known-broken or stubbed areas to repair:
+- `/plans` + `/plans/$id` — wire to `execution_plans` + `task_runs` (live data, not placeholder).
+- `/memory` — list/search `memory_chunks`, allow manual add + delete.
+- `/skills` — list `skills`, view active version code, toggle enabled.
+- `/vault` — list/add/delete `vault_secrets` (values write-only, never read back).
+- `/rules` — CRUD on `chronos_rules`.
+- `/inbox` — list `signals`, mark handled.
+- `/now` — read `user_state`, edit focus.
+- `/logs` — tail `task_runs` (latest 100).
+- `/chat` — confirm threads + streaming + uploads still work after the auth fix.
 
-`src/routes/api/public/`:
-- `POST /api/public/ingest` — external webhooks, HMAC verified
-- `POST /api/public/cron/chronos` — called by pg_cron every 60s
+For each, add a friendly empty state and a "something went wrong" boundary via the existing `ModuleShell`.
 
-## Self-heal loop (canonical)
+### 3d. Auth-ready hook for safe queries
+Add `src/hooks/useAuthReady.ts` (per the established pattern): `getSession()` first, then subscribe to `onAuthStateChange`. Authed modules use `enabled: isReady && !!user` on their queries so RLS-protected calls never fire before the bearer token is attached. This is what prevents the "blank module + 401" class of bug across the app.
 
-```ts
-for (const node of topoSort(plan.dag)) {
-  const cached = await lookupSkill(node.tool_name, signatureOf(node.input));
-  let code = cached?.code ?? await reasoner.generateSkill(node);
-  let lastErr: string | undefined;
+## Technical notes
+- No new tables besides `profiles`. All other modules already have schema.
+- One new secret request: `RESEND_API_KEY` (for the email skill). I'll prompt before writing the email code.
+- No edge functions; everything stays in TanStack server fns / server routes.
+- Title Case is a source-string change; no CSS tricks.
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const result = await e2b.runPython(code, { env: resolveSecrets(node) });
-    await recordRun(node, attempt, result);
-    if (result.exit_code === 0) {
-      await promoteSkillVersion(node, code, cached);
-      break;
-    }
-    lastErr = result.stderr;
-    code = await reasoner.repair(node, code, lastErr, attempt); // Developer-State prompt
-  }
-  if (!success) markPlanDegraded(plan, node, lastErr);
-}
-```
-
-## UI (single authenticated dashboard, terminal aesthetic)
-
-Auth: email/password by default (Google later if requested). `_authenticated` layout.
-
-Pages:
-- `/` Inbox — live signals + status chips
-- `/now` State ledger + "I'm overwhelmed" free-text ingest box
-- `/plans/$id` DAG visualizer with per-node stdout/stderr/exit, retry timeline
-- `/skills` Skill vault: name, language, success/fail counts, expandable code viewer with version history + diff between attempts
-- `/memory` Add/search ontological notes
-- `/rules` Chronos rules CRUD
-- `/vault` Per-user third-party credentials the sandbox can use
-- `/logs` Tail of recent `task_runs` for transparent "Kora thinking" readout
-
-Visuals: dark, JetBrains Mono for code/state, Inter for prose. No marketing decoration.
-
-## Build order
-
-1. Enable Lovable Cloud; create schema + RLS + `vector` + `pg_cron` + `pgcrypto`
-2. Auth + `_authenticated` layout + `/login`
-3. `add_secret` for `E2B_API_KEY` and `INGEST_HMAC_SECRET`
-4. E2B server helper + smoke-test `runPython("print('ok')")` via a temp server fn
-5. Memory engine (embed + recall via Lovable AI Gateway)
-6. Reasoner: Lovable AI tool-calling → Zod `ExecutionPlan` schema
-7. Executor + self-heal loop + skill version promotion
-8. `/api/public/ingest` (HMAC) and `/api/public/cron/chronos` + pg_cron job hitting the stable preview URL
-9. Vault (encrypted secret store + sandbox injection)
-10. Dashboard pages
-11. End-to-end demo: "summarize my unread email and tell me what to do first" → no skill exists → LLM writes Python using Gmail API + creds from vault → runs in E2B → fails (missing scope) → self-heals → succeeds → cached as a skill
-
-## What I need from you before I build
-
-1. **E2B account**: I'll prompt you for `E2B_API_KEY` via the secret tool. Confirm you'll provide one (free tier works for dev).
-2. **Auth provider**: email/password only, or also Google?
-3. **First demo skill domain**: Gmail, calendar, generic shell/web scrape, or your choice — drives which OAuth creds we wire into the vault first.
-
-Approve and I'll execute the full build straight through.
+## Out of scope
+- Push notifications, real file-upload pipeline beyond chat attachments, parent-child agents beyond a single nested level — those stay parked from earlier prioritization.
