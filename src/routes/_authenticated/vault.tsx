@@ -28,15 +28,15 @@ function VaultPage() {
       await set({ data: { name, value } });
       setName(""); setValue("");
       qc.invalidateQueries({ queryKey: ["vault"] });
-      toast.success("secret stored — encrypted at rest");
+      toast.success("Secret stored — encrypted at rest");
     } catch (e: any) { toast.error(e.message); }
   }
 
   return (
     <ModuleShell
-      eyebrow="vault"
-      title="credentials, encrypted"
-      caption={<>per-user secrets, AES-GCM, injected into the sandbox only when a skill names them.</>}
+      eyebrow="Vault"
+      title="Credentials, Encrypted"
+      caption={<>Per-user secrets, AES-GCM, injected into the sandbox only when a skill names them.</>}
     >
       <form onSubmit={save} className="glass rounded-2xl p-3">
         <div className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
@@ -55,14 +55,14 @@ function VaultPage() {
             onChange={(e) => setValue(e.target.value)}
             className="field rounded-xl px-3 py-2.5 text-[13px] outline-none"
           />
-          <button className="btn-primary rounded-xl px-4 py-2.5 text-[13px]">store</button>
+          <button className="btn-primary rounded-xl px-4 py-2.5 text-[13px]">Store</button>
         </div>
       </form>
 
       <div className="glass-soft divide-y divide-border/60 rounded-2xl">
         {names.length === 0 && (
           <div className="p-8 text-center text-[14px] text-muted-foreground">
-            <span className="font-serif-italic">vault is empty.</span>
+            <span className="font-serif-italic">Vault is empty.</span>
           </div>
         )}
         {names.map((n) => (
@@ -73,7 +73,7 @@ function VaultPage() {
               onClick={async () => { await rm({ data: { name: n } }); qc.invalidateQueries({ queryKey: ["vault"] }); }}
               className="font-mono-tight rounded-full px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             >
-              remove
+              Remove
             </button>
           </div>
         ))}

@@ -30,8 +30,8 @@ function PlanDetail() {
 
   if (!data) {
     return (
-      <ModuleShell eyebrow="plan" title="not found">
-        <p className="font-serif-italic text-muted-foreground">that plan drifted away.</p>
+      <ModuleShell eyebrow="Plan" title="Not Found">
+        <p className="font-serif-italic text-muted-foreground">That plan drifted away.</p>
       </ModuleShell>
     );
   }
@@ -44,12 +44,12 @@ function PlanDetail() {
 
   return (
     <ModuleShell
-      eyebrow={`plan · ${id.slice(0, 8)}`}
+      eyebrow={`Plan · ${id.slice(0, 8)}`}
       title={plan.goal}
       caption={dag?.reasoning && <>"{dag.reasoning}"</>}
     >
       <div className="glass-soft flex items-center gap-3 rounded-2xl px-4 py-3">
-        <span className="eyebrow">status</span>
+        <span className="eyebrow">Status</span>
         <span className={`font-mono-tight rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-wider ${statusTone(plan.status)}`}>
           {plan.status}
         </span>

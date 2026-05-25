@@ -37,9 +37,9 @@ function MemoryPage() {
 
   return (
     <ModuleShell
-      eyebrow="memory"
-      title="what should I remember?"
-      caption={<>facts, preferences, recurring patterns — kora recalls these when reasoning.</>}
+      eyebrow="Memory"
+      title="What Should I Remember?"
+      caption={<>Facts, preferences, recurring patterns — Kora recalls these when reasoning.</>}
     >
       <form onSubmit={save} className="glass rounded-2xl p-2">
         <div className="field rounded-xl p-2">
@@ -47,13 +47,13 @@ function MemoryPage() {
             rows={3}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder='"my name is charis." / "i write standups every monday at 9:30 utc."'
+            placeholder='"My name is Charis." / "I write standups every Monday at 9:30 UTC."'
             className="w-full resize-none bg-transparent px-3 py-2 text-[15px] outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div className="flex justify-end px-2 pt-2">
           <button disabled={busy || !text.trim()} className="btn-primary rounded-xl px-4 py-2 text-[13px] disabled:opacity-40">
-            {busy ? "storing…" : "remember"}
+            {busy ? "Storing…" : "Remember"}
           </button>
         </div>
       </form>
@@ -61,7 +61,7 @@ function MemoryPage() {
       <div className="glass-soft divide-y divide-border/60 rounded-2xl">
         {items.length === 0 && (
           <div className="p-8 text-center text-[14px] text-muted-foreground">
-            <span className="font-serif-italic">no memories yet.</span>
+            <span className="font-serif-italic">No memories yet.</span>
           </div>
         )}
         {items.map((m) => (

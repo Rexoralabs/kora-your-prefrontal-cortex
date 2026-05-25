@@ -23,15 +23,15 @@ function NowPage() {
 
   async function save() {
     await setFn({ data: { focus: focus.trim() || null } });
-    toast.success("focus updated");
+    toast.success("Focus updated");
     qc.invalidateQueries({ queryKey: ["state"] });
   }
 
   return (
     <ModuleShell
-      eyebrow="now"
-      title="what's on your mind?"
-      caption={<>kora consults this whenever it reasons about your next move.</>}
+      eyebrow="Now"
+      title="What's On Your Mind?"
+      caption={<>Kora consults this whenever it reasons about your next move.</>}
     >
       <div className="glass rounded-2xl p-5">
         <div className="field rounded-xl p-2">
@@ -39,16 +39,16 @@ function NowPage() {
             value={focus}
             onChange={(e) => setFocus(e.target.value)}
             rows={4}
-            placeholder="e.g. shipping the Kora v0.2 release this week."
+            placeholder="e.g. Shipping the Kora v0.2 release this week."
             className="w-full resize-none bg-transparent px-3 py-2 text-[15px] outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div className="mt-3 flex items-center justify-between gap-3">
           <span className="font-mono-tight text-[11px] text-muted-foreground">
-            last active: {data?.last_active ? new Date(data.last_active).toLocaleString() : "—"}
+            Last active: {data?.last_active ? new Date(data.last_active).toLocaleString() : "—"}
           </span>
           <button onClick={save} className="btn-primary rounded-xl px-4 py-2 text-[13px]">
-            save focus
+            Save Focus
           </button>
         </div>
       </div>

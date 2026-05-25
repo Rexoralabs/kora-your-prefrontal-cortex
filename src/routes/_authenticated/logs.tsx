@@ -15,19 +15,19 @@ function LogsPage() {
   const { data: runs } = useSuspenseQuery(logsQO);
   return (
     <ModuleShell
-      eyebrow="logs"
-      title="execution trace"
-      caption={<>every sandbox run kora attempted, with exit codes and durations.</>}
+      eyebrow="Logs"
+      title="Execution Trace"
+      caption={<>Every sandbox run Kora attempted, with exit codes and durations.</>}
     >
       <div className="glass-soft overflow-hidden rounded-2xl">
         <table className="w-full text-[13px]">
           <thead className="bg-foreground/[0.03] text-muted-foreground">
             <tr>
-              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">time</th>
-              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">node</th>
-              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">tool</th>
-              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">attempt</th>
-              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">exit</th>
+              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">Time</th>
+              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">Node</th>
+              <th className="p-3 text-left font-mono-tight text-[11px] uppercase tracking-wider">Tool</th>
+              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">Attempt</th>
+              <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">Exit</th>
               <th className="p-3 font-mono-tight text-[11px] uppercase tracking-wider">ms</th>
               <th />
             </tr>
@@ -44,7 +44,7 @@ function LogsPage() {
                 <td className="p-3">
                   {r.plan_id && (
                     <Link to="/plans/$id" params={{ id: r.plan_id }} className="text-info underline-offset-4 hover:underline">
-                      plan
+                      Plan
                     </Link>
                   )}
                 </td>
@@ -54,7 +54,7 @@ function LogsPage() {
         </table>
         {runs.length === 0 && (
           <div className="p-8 text-center text-[14px] text-muted-foreground">
-            <span className="font-serif-italic">no runs yet.</span>
+            <span className="font-serif-italic">No runs yet.</span>
           </div>
         )}
       </div>

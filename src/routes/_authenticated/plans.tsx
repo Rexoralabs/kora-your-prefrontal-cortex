@@ -22,14 +22,14 @@ function PlansPage() {
   const { data: plans } = useSuspenseQuery(plansQO);
   return (
     <ModuleShell
-      eyebrow="plans"
-      title="execution plans"
-      caption={<>each plan is a DAG kora authored, ran, and self-healed.</>}
+      eyebrow="Plans"
+      title="Execution Plans"
+      caption={<>Each plan is a DAG Kora authored, ran, and self-healed.</>}
     >
       <div className="glass-soft divide-y divide-border/60 rounded-2xl">
         {plans.length === 0 && (
           <div className="p-8 text-center text-[14px] text-muted-foreground">
-            <span className="font-serif-italic">no plans yet — give kora a goal.</span>
+            <span className="font-serif-italic">No plans yet — give Kora a goal.</span>
           </div>
         )}
         {plans.map((p) => (

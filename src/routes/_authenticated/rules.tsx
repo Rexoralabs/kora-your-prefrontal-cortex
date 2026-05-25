@@ -27,20 +27,20 @@ function RulesPage() {
       await upsert({ data: { ...form, enabled: true } });
       setForm({ name: "", cron: "0 9 * * *", trigger_text: "" });
       qc.invalidateQueries({ queryKey: ["rules"] });
-      toast.success("rule saved — chronos will tick it");
+      toast.success("Rule saved — Chronos will tick it");
     } catch (e: any) { toast.error(e.message); }
   }
 
   return (
     <ModuleShell
-      eyebrow="chronos"
-      title="rules & schedules"
-      caption={<>proactive triggers. cron is UTC, 5-field — polled every minute.</>}
+      eyebrow="Chronos"
+      title="Rules & Schedules"
+      caption={<>Proactive triggers. Cron is UTC, 5-field — polled every minute.</>}
     >
       <form onSubmit={save} className="glass rounded-2xl p-3">
         <div className="grid gap-2 md:grid-cols-[1fr_140px_2fr_auto]">
           <input
-            required placeholder="name"
+            required placeholder="Name"
             value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="field rounded-xl px-3 py-2.5 text-[13px] outline-none"
           />
@@ -50,19 +50,19 @@ function RulesPage() {
             className="field font-mono-tight rounded-xl px-3 py-2.5 text-[13px] outline-none"
           />
           <input
-            required placeholder="what should kora do?"
+            required placeholder="What should Kora do?"
             value={form.trigger_text}
             onChange={(e) => setForm({ ...form, trigger_text: e.target.value })}
             className="field rounded-xl px-3 py-2.5 text-[13px] outline-none"
           />
-          <button className="btn-primary rounded-xl px-4 py-2.5 text-[13px]">add</button>
+          <button className="btn-primary rounded-xl px-4 py-2.5 text-[13px]">Add</button>
         </div>
       </form>
 
       <div className="glass-soft divide-y divide-border/60 rounded-2xl">
         {rules.length === 0 && (
           <div className="p-8 text-center text-[14px] text-muted-foreground">
-            <span className="font-serif-italic">no rules yet.</span>
+            <span className="font-serif-italic">No rules yet.</span>
           </div>
         )}
         {rules.map((r) => (
@@ -77,7 +77,7 @@ function RulesPage() {
               onClick={async () => { await del({ data: { id: r.id } }); qc.invalidateQueries({ queryKey: ["rules"] }); }}
               className="font-mono-tight rounded-full px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             >
-              delete
+              Delete
             </button>
           </div>
         ))}
