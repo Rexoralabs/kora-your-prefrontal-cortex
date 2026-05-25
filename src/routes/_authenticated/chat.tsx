@@ -87,11 +87,11 @@ function ChatPage() {
         {/* Sidebar */}
         <aside className="glass hidden w-72 shrink-0 flex-col rounded-2xl p-3 md:flex">
           <div className="flex items-center gap-2 px-1 pb-2">
-            <h2 className="text-[15px] tracking-tight">conversations</h2>
+            <h2 className="text-[15px] tracking-tight">Conversations</h2>
             <button
               onClick={newThread}
               className="ml-auto btn-ghost grid h-8 w-8 place-items-center rounded-full hover:bg-foreground/8"
-              title="new"
+              title="New"
             >
               <Plus weight="bold" size={14} />
             </button>
@@ -104,14 +104,14 @@ function ChatPage() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="search"
+              placeholder="Search"
               className="field w-full rounded-lg pl-7 pr-2 py-1.5 text-[12.5px] outline-none"
             />
           </div>
           <div className="-mx-1 flex-1 overflow-y-auto px-1">
             {threadList.length === 0 && (
               <p className="px-2 py-6 text-center font-serif-italic text-[13px] text-muted-foreground">
-                no conversations yet — start one
+                No conversations yet — start one
               </p>
             )}
             <ul className="space-y-0.5">
@@ -169,15 +169,15 @@ function EmptyState({ onStart }: { onStart: () => void }) {
         <div className="mx-auto mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-foreground text-background">
           <Sparkle weight="fill" size={18} />
         </div>
-        <h1 className="text-2xl tracking-tight">say hello to kora</h1>
+        <h1 className="text-2xl tracking-tight">Say Hello to Kora</h1>
         <p className="mt-2 font-serif-italic text-[15px] text-muted-foreground">
-          a quiet co-pilot — chat freely, or hand her something heavy.
+          A quiet co-pilot — chat freely, or hand her something heavy.
         </p>
         <button
           onClick={onStart}
           className="btn-primary mt-6 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px]"
         >
-          <Plus weight="bold" size={14} /> start a conversation
+          <Plus weight="bold" size={14} /> Start a Conversation
         </button>
       </div>
     </div>

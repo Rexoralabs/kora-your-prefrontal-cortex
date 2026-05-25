@@ -44,16 +44,16 @@ export function ModuleError({ error, reset }: { error: Error; reset: () => void 
   return (
     <div className="page-enter mx-auto max-w-2xl pt-10">
       <div className="glass rounded-3xl p-8">
-        <p className="eyebrow">something stalled</p>
-        <h2 className="mt-2 text-2xl tracking-tight">a small hiccup</h2>
+        <p className="eyebrow">Something Stalled</p>
+        <h2 className="mt-2 text-2xl tracking-tight">A Small Hiccup</h2>
         <p className="font-serif-italic mt-2 text-muted-foreground">
-          this module couldn't load right now — usually a transient network blip.
+          This module couldn't load right now — usually a transient network blip.
         </p>
         <pre className="font-mono-tight mt-4 max-h-40 overflow-auto rounded-xl bg-muted/60 p-3 text-[11px] text-muted-foreground">
 {String(error?.message ?? error)}
         </pre>
         <button onClick={reset} className="btn-primary mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm">
-          try again
+          Try Again
         </button>
       </div>
     </div>
