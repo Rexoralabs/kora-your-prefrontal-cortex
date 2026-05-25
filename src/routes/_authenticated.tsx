@@ -10,44 +10,33 @@ import {
   CalendarBlank,
   Lock,
   Terminal,
+  GearSix,
   SignOut,
 } from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
-    // Give the local session a moment to hydrate on a fresh page load
-    // (Supabase reads from localStorage synchronously on the client, but
-    // getUser may transiently fail on a cold worker). Only redirect when
-    // we're confident there is no user.
-    try {
-      const { data, error } = await supabase.auth.getUser();
-      if (error) {
-        // Network/transient error — keep the user where they are if a session token exists.
-        const { data: s } = await supabase.auth.getSession();
-        if (s.session?.user) return;
-        throw redirect({ to: "/login" });
-      }
-      if (!data.user) throw redirect({ to: "/login" });
-    } catch (e) {
-      // Re-throw redirects, swallow other transient errors when a session is cached
-      if ((e as any)?.isRedirect) throw e;
-      const { data: s } = await supabase.auth.getSession();
-      if (!s.session?.user) throw redirect({ to: "/login" });
+    // Use getSession (synchronous read from localStorage) instead of getUser
+    // (network call) so the guard never races a fresh sign-in.
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.user) {
+      throw redirect({ to: "/login" });
     }
   },
   component: AuthedLayout,
 });
 
 const TABS = [
-  { to: "/chat", label: "chat", Icon: ChatCircle },
-  { to: "/inbox", label: "inbox", Icon: Tray },
-  { to: "/now", label: "now", Icon: Target },
-  { to: "/plans", label: "plans", Icon: ListChecks },
-  { to: "/skills", label: "skills", Icon: Sparkle },
-  { to: "/memory", label: "memory", Icon: Brain },
-  { to: "/rules", label: "rules", Icon: CalendarBlank },
-  { to: "/vault", label: "vault", Icon: Lock },
-  { to: "/logs", label: "logs", Icon: Terminal },
+  { to: "/chat", label: "Chat", Icon: ChatCircle },
+  { to: "/inbox", label: "Inbox", Icon: Tray },
+  { to: "/now", label: "Now", Icon: Target },
+  { to: "/plans", label: "Plans", Icon: ListChecks },
+  { to: "/skills", label: "Skills", Icon: Sparkle },
+  { to: "/memory", label: "Memory", Icon: Brain },
+  { to: "/rules", label: "Rules", Icon: CalendarBlank },
+  { to: "/vault", label: "Vault", Icon: Lock },
+  { to: "/logs", label: "Logs", Icon: Terminal },
+  { to: "/settings", label: "Settings", Icon: GearSix },
 ] as const;
 
 function AuthedLayout() {
@@ -75,7 +64,7 @@ function AuthedLayout() {
               kora
             </span>
             <span className="font-serif-italic text-[13px] text-muted-foreground">
-              co-pilot
+              Co-Pilot
             </span>
           </Link>
 
@@ -102,10 +91,10 @@ function AuthedLayout() {
           <button
             onClick={logout}
             className="btn-ghost inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            aria-label="sign out"
+            aria-label="Sign Out"
           >
             <SignOut size={14} />
-            <span className="hidden sm:inline">sign out</span>
+            <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>
       </header>
