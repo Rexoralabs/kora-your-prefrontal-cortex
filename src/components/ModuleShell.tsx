@@ -1,8 +1,10 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
+import gsap from "gsap";
 
 /**
  * Standardized page shell for every authenticated module.
- * Provides the Neural Expressive backdrop + a soft page-enter animation.
+ * GSAP-orchestrated enter: header + body rise softly, staggered for a
+ * premium spatial feel.
  */
 export function ModuleShell({
   eyebrow,
@@ -17,10 +19,35 @@ export function ModuleShell({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!root.current) return;
+    const ctx = gsap.context(() => {
+      const targets = root.current!.querySelectorAll<HTMLElement>("[data-shell-rise]");
+      gsap.fromTo(
+        targets,
+        { y: 14, autoAlpha: 0, filter: "blur(6px)" },
+        {
+          y: 0,
+          autoAlpha: 1,
+          filter: "blur(0px)",
+          duration: 0.7,
+          stagger: 0.07,
+          ease: "expo.out",
+        },
+      );
+    }, root);
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <div className="relative min-h-[calc(100vh-72px)]">
-      <div className="page-enter mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-end justify-between gap-4 pt-2">
+    <div className="relative min-h-[calc(100vh-72px)]" ref={root}>
+      <div className="mx-auto max-w-5xl space-y-6">
+        <header
+          className="flex flex-wrap items-end justify-between gap-4 pt-2"
+          data-shell-rise
+        >
           <div>
             <p className="eyebrow">{eyebrow}</p>
             <h1 className="mt-1 text-[34px] leading-none tracking-tight">
@@ -34,7 +61,7 @@ export function ModuleShell({
           </div>
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
-        {children}
+        <div data-shell-rise>{children}</div>
       </div>
     </div>
   );
