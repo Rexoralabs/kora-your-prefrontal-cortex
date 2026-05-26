@@ -1,11 +1,14 @@
 // Executor: topo-sorts DAG, runs each node in E2B with self-heal (max 3 attempts).
+// Supports sub-agent orchestration: a node with `subgoal` is delegated to a
+// nested reasoner+executor instead of running a single Python skill.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { embed } from "./llm.server";
 import { runPython } from "./sandbox.server";
-import { generateSkillCode, type ExecutionPlan, type PlanNode } from "./reasoner.server";
-import { resolveSecrets } from "./vault.server";
+import { generateSkillCode, makePlan, type ExecutionPlan, type PlanNode } from "./reasoner.server";
+import { resolveSecrets, listSecretNames } from "./vault.server";
 
 const MAX_ATTEMPTS = 3;
+const MAX_SUBAGENT_DEPTH = 2;
 
 function signatureOf(node: PlanNode): string {
   const sig = JSON.stringify({ name: node.name, inputs: Object.keys(node.inputs).sort() });
