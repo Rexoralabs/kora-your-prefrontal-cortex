@@ -9,6 +9,10 @@ export const PlanNodeSchema = z.object({
   depends_on: z.array(z.string()).default([]),
   required_secrets: z.array(z.string()).default([]),
   inputs: z.record(z.string(), z.any()).default({}),
+  // When set, this node is delegated to a SUB-AGENT (nested reasoner+executor)
+  // instead of running a single Python skill. The sub-agent receives `subgoal`
+  // as its own goal and its final aggregated stdout becomes this node's output.
+  subgoal: z.string().nullable().optional(),
 });
 export type PlanNode = z.infer<typeof PlanNodeSchema>;
 
@@ -21,14 +25,18 @@ export type ExecutionPlan = z.infer<typeof ExecutionPlanSchema>;
 
 const SYSTEM = `You are the Reasoning Cortex of Project Kora, an autonomous personal assistant that acts as an externalized prefrontal cortex.
 
-You decompose a user signal into a small DAG (1-6 nodes) of atomic Python skills. Each node will later be CODE-GENERATED and EXECUTED in an isolated E2B Linux micro-VM with full internet access.
+You decompose a user signal into a small DAG (1-6 nodes). Each node is one of:
+  (a) an ATOMIC Python skill — code-generated and executed in an isolated E2B Linux micro-VM with full internet access.
+  (b) a DELEGATED sub-goal — handed to a child reasoner that plans + executes it recursively. Use (b) when a step itself naturally decomposes into multiple sub-steps (e.g. "research the top 5 competitors and summarize" — that is a sub-goal, not a single skill).
 
 Rules:
 - Prefer the smallest viable plan. One node is fine if it suffices.
-- Each node "name" is snake_case (e.g. "fetch_unread_email", "summarize_text", "send_reminder").
+- Each node "name" is snake_case (e.g. "fetch_unread_email", "research_competitors").
 - depends_on lists node ids whose stdout this node consumes via stdin or env.
-- required_secrets are user-vault secret names (e.g. ["GMAIL_OAUTH_TOKEN"]). Do not invent secrets the user has not provided unless absolutely necessary.
+- required_secrets are user-vault secret names. Do not invent secrets the user has not provided unless necessary.
 - "inputs" is a small JSON object passed to the skill at runtime (kept as KORA_INPUT env var).
+- For a delegated node, set "subgoal" to a clear standalone instruction for the child agent and leave required_secrets empty. Do not also write Python for it.
+- Delegate sparingly — at most one or two sub-goals per plan, never if a single skill would do.
 - "reasoning" is one short paragraph explaining the plan to the user, in second person.
 - Respond ONLY via the emit_plan tool call. No prose.`;
 
@@ -68,6 +76,7 @@ export async function makePlan(args: {
                 depends_on: { type: "array", items: { type: "string" } },
                 required_secrets: { type: "array", items: { type: "string" } },
                 inputs: { type: "object", additionalProperties: true },
+                subgoal: { type: ["string", "null"], description: "If set, delegate this node to a child agent with this sub-goal instead of writing Python." },
               },
               required: ["id", "name", "description"],
               additionalProperties: false,
