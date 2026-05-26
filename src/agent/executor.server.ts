@@ -250,3 +250,142 @@ async function promoteSkill(args: {
       .eq("id", skillId!);
   }
 }
+
+// ─── Sub-agent orchestration ─────────────────────────────────────────────────
+// A delegated node spins up its OWN execution_plans row (linked to the parent
+// via dag.parent_plan_id), reasons a child plan, executes it, and returns the
+// last node's stdout/output as this node's result. Capped at MAX_SUBAGENT_DEPTH.
+async function runSubAgent(args: {
+  userId: string;
+  parentPlanId: string;
+  node: PlanNode;
+  depth: number;
+  upstream: Record<string, { stdout: string; output: any }>;
+}): Promise<{ ok: true; stdout: string; output: any } | { ok: false; error: string }> {
+  const { userId, parentPlanId, node, depth, upstream } = args;
+  const t0 = Date.now();
+
+  if (depth >= MAX_SUBAGENT_DEPTH) {
+    const msg = `max sub-agent depth ${MAX_SUBAGENT_DEPTH} reached`;
+    await supabaseAdmin.from("task_runs").insert({
+      user_id: userId,
+      plan_id: parentPlanId,
+      node_id: node.id,
+      tool_name: `subagent:${node.name}`,
+      input: { subgoal: node.subgoal } as any,
+      stderr: msg,
+      exit_code: 1,
+      status: "error",
+      attempt: 1,
+      duration_ms: 0,
+    });
+    return { ok: false, error: msg };
+  }
+
+  // Pull tiny context for the child reasoner.
+  const [{ data: stateRow }, secretNames] = await Promise.all([
+    supabaseAdmin.from("user_state").select("focus, flags").eq("user_id", userId).maybeSingle(),
+    listSecretNames(userId),
+  ]);
+  const upstreamHint = node.depends_on
+    .map((id) => `- ${id}: ${(upstream[id]?.stdout ?? "").slice(-600)}`)
+    .filter(Boolean)
+    .join("\n");
+  const enrichedGoal = upstreamHint
+    ? `${node.subgoal}\n\n# Upstream context\n${upstreamHint}`
+    : node.subgoal!;
+
+  let childPlan;
+  try {
+    childPlan = await makePlan({
+      goal: enrichedGoal,
+      memorySnippets: [],
+      availableSecrets: secretNames,
+      userState: { focus: stateRow?.focus ?? null, flags: (stateRow?.flags as any) ?? {} },
+    });
+  } catch (e: any) {
+    return { ok: false, error: `child reasoner: ${e?.message ?? "failed"}` };
+  }
+
+  const { data: childRow, error: insErr } = await supabaseAdmin
+    .from("execution_plans")
+    .insert({
+      user_id: userId,
+      goal: childPlan.goal,
+      dag: { ...childPlan, parent_plan_id: parentPlanId, parent_node_id: node.id, depth: depth + 1 } as any,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+  if (insErr || !childRow) return { ok: false, error: insErr?.message ?? "insert child plan" };
+
+  // Record a parent-side task_run so the UI shows the delegation in the trace.
+  await supabaseAdmin.from("task_runs").insert({
+    user_id: userId,
+    plan_id: parentPlanId,
+    node_id: node.id,
+    tool_name: `subagent:${node.name}`,
+    input: { subgoal: node.subgoal, child_plan_id: childRow.id } as any,
+    status: "running",
+    attempt: 1,
+  });
+
+  try {
+    await executePlan(userId, childRow.id, childPlan, depth + 1);
+  } catch (e: any) {
+    const msg = e?.message ?? "child executor crashed";
+    await supabaseAdmin.from("task_runs").insert({
+      user_id: userId,
+      plan_id: parentPlanId,
+      node_id: node.id,
+      tool_name: `subagent:${node.name}`,
+      input: { child_plan_id: childRow.id } as any,
+      stderr: msg,
+      exit_code: 1,
+      status: "error",
+      attempt: 1,
+      duration_ms: Date.now() - t0,
+    });
+    return { ok: false, error: msg };
+  }
+
+  // Aggregate the child's last node output as this delegated node's result.
+  const { data: childPlanRow } = await supabaseAdmin
+    .from("execution_plans")
+    .select("status, error")
+    .eq("id", childRow.id)
+    .maybeSingle();
+  const { data: childRuns } = await supabaseAdmin
+    .from("task_runs")
+    .select("node_id, stdout, output, status")
+    .eq("plan_id", childRow.id)
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  const lastOk = (childRuns ?? []).find((r) => r.status === "ok");
+  const aggregated = {
+    child_plan_id: childRow.id,
+    child_status: childPlanRow?.status ?? "unknown",
+    last_output: lastOk?.output ?? null,
+  };
+  const stdout = lastOk?.stdout ?? JSON.stringify(aggregated);
+
+  await supabaseAdmin.from("task_runs").insert({
+    user_id: userId,
+    plan_id: parentPlanId,
+    node_id: node.id,
+    tool_name: `subagent:${node.name}`,
+    input: { child_plan_id: childRow.id } as any,
+    output: aggregated as any,
+    stdout: stdout.slice(0, 16_000),
+    status: childPlanRow?.status === "succeeded" ? "ok" : "error",
+    exit_code: childPlanRow?.status === "succeeded" ? 0 : 1,
+    attempt: 1,
+    duration_ms: Date.now() - t0,
+  });
+
+  if (childPlanRow?.status !== "succeeded") {
+    return { ok: false, error: childPlanRow?.error ?? "child plan did not succeed" };
+  }
+  return { ok: true, stdout, output: aggregated };
+}
