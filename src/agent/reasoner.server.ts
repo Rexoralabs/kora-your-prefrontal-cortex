@@ -76,6 +76,7 @@ export async function makePlan(args: {
                 depends_on: { type: "array", items: { type: "string" } },
                 required_secrets: { type: "array", items: { type: "string" } },
                 inputs: { type: "object", additionalProperties: true },
+                subgoal: { type: ["string", "null"], description: "If set, delegate this node to a child agent with this sub-goal instead of writing Python." },
               },
               required: ["id", "name", "description"],
               additionalProperties: false,
