@@ -49,8 +49,13 @@ function extractFinalOutput(stdout: string): any {
   return stdout.trim().slice(-2000);
 }
 
-export async function executePlan(userId: string, planId: string, plan: ExecutionPlan): Promise<void> {
-  console.log(`[kora.exec] plan=${planId} nodes=${plan.nodes.length}`);
+export async function executePlan(
+  userId: string,
+  planId: string,
+  plan: ExecutionPlan,
+  depth = 0,
+): Promise<void> {
+  console.log(`[kora.exec] plan=${planId} nodes=${plan.nodes.length} depth=${depth}`);
   await supabaseAdmin.from("execution_plans").update({ status: "running" }).eq("id", planId);
 
   const ordered = topoSort(plan.nodes);
@@ -59,6 +64,24 @@ export async function executePlan(userId: string, planId: string, plan: Executio
   let planError: string | undefined;
 
   for (const node of ordered) {
+    // ─── Sub-agent delegation ──────────────────────────────────────────────
+    if (node.subgoal && node.subgoal.trim()) {
+      const subResult = await runSubAgent({
+        userId,
+        parentPlanId: planId,
+        node,
+        depth,
+        upstream: nodeOutputs,
+      });
+      if (!subResult.ok) {
+        planFailed = true;
+        planError = `subagent ${node.id} (${node.name}) failed: ${subResult.error}`;
+        break;
+      }
+      nodeOutputs[node.id] = { stdout: subResult.stdout, output: subResult.output };
+      continue;
+    }
+
     const sigHash = signatureOf(node);
     // Lookup cached skill
     const { data: cachedSkill } = await supabaseAdmin
