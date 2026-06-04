@@ -1,61 +1,72 @@
-# Plan: Login Fix, Title Case, Bundle 3
+## 1. Fix the login redirect bug (root cause)
 
-## 1. Fix the login redirect loop
+The `/_authenticated` guard runs during **SSR** for `/chat`. On the server there is no `localStorage`, so `supabase.auth.getSession()` returns `{ session: null }` and the guard redirects to `/login` — every time, even right after a successful sign-in. That is the "loads for a second, splash flashes, bounced back to login" symptom.
 
-**Symptom:** Submit credentials → brief load → splash flashes → bounced back to `/login`.
+Fix:
+- Replace `src/routes/_authenticated.tsx` with the integration-managed pattern at `src/routes/_authenticated/route.tsx`:
+  - `ssr: false` on the layout (Supabase session only exists in the browser).
+  - `beforeLoad` calls `supabase.auth.getUser()` (re-validates with the auth server, not a stale cookie/localStorage read) and `throw redirect({ to: "/login" })` on failure.
+  - Component renders the same header/nav + `<Outlet />`.
+- Move every child route file from `src/routes/_authenticated/*.tsx` into the same folder — they already live there, so no path changes.
+- Simplify `login.tsx`: drop the `getSession()` polling loop and `router.invalidate()` dance. After `signInWithPassword` succeeds, call `router.invalidate()` once and `navigate({ to: "/chat", replace: true })`. The root-level `onAuthStateChange` subscriber already invalidates queries.
+- Keep `src/routes/index.tsx` using `getSession()` (acceptable for the post-login bounce because the `_authenticated` gate will re-validate with `getUser()`).
+- Splash: keep current `sessionStorage` + `/login` skip; no change needed once the loop stops.
 
-**Root cause:** `_authenticated.beforeLoad` awaits `supabase.auth.getUser()` (network call to `/auth/v1/user`) the instant `navigate({ to: "/chat" })` fires. On a cold worker / slow link, that call returns no user before the new session token is fully attached, so the guard throws `redirect({ to: "/login" })`. The `Splash` component then re-mounts because `sessionStorage` was cleared by the failed nav, producing the flash.
+## 2. Verify Chat + Agent + Memory work
 
-**Fix:**
-- Replace the network `getUser()` check in `_authenticated.beforeLoad` with the synchronous `getSession()` — it reads from `localStorage` and is the canonical "is there a token?" check. Only treat absence of a session as unauthenticated; never redirect on a transient network error.
-- In `login.tsx`, after `signInWithPassword` resolves, do not navigate manually. Instead `await supabase.auth.getSession()` to confirm the session is persisted, then `router.invalidate()` + `navigate({ to: "/chat", replace: true })`. The `replace` kills the back-button bounce, and invalidate makes the guard re-evaluate with the fresh session.
-- Mirror the same change in `index.tsx` (root redirect) — use `getSession()`, not `getUser()`.
-- Harden `Splash`: gate on `sessionStorage` *and* skip rendering when the current path is `/login` (so a bounce never re-triggers the animation).
+Smoke-check after the fix:
+- **Chat (streaming)**: send a message in `chat` mode → `/api/public/chat/stream` returns SSE deltas → assistant message persists. Confirm the bearer token attach still works after the new layout.
+- **Agent (thinking mode)**: send a goal in `think` mode → `reasonAndStartExecution` creates an `execution_plans` row → `executePlan` runs → `task_runs` populate → UI polls via `getPlan` and renders the trace.
+- **Memory**: name extraction inserts into `memory_chunks`; `match_memory_chunks` RPC returns snippets for the next chat. Manual add via `addMemory` works from `/memory`.
+- **Settings, Plans, Skills, Vault, Rules, Now, Logs, Inbox**: load each route signed in; confirm queries return data and empty states render.
 
-## 2. Title Case for all headings
+Any failure found gets a surgical fix in the same pass (no rewrites).
 
-Audit every `<h1>`/`<h2>`/`<h3>` and equivalent display text (page titles, card titles, module section headers, dialog titles, the splash tagline). Convert from current lowercase styling to Title Case at the source string level (not via CSS `text-transform`, so it reads correctly to screen readers and in og:title).
+## 3. Refactor agent runtime to the Claude-Code / Hermes architecture
 
-Scope: all files under `src/routes/_authenticated/*`, `src/routes/login.tsx`, `src/routes/__root.tsx` (404 / error pages), `src/components/Splash.tsx`, `ModuleShell.tsx`. Keep brand mark `kora` lowercase (it's a logotype).
+Implemented entirely with **Lovable AI** (`google/gemini-2.5-pro` for reasoning, `google/gemini-3-flash-preview` for chat/extraction, `google/gemini-embedding-001` for memory).
 
-## 3. Bundle 3 — Agentic powers + Settings + module verification
+### 3a. Single-threaded master loop (`nO`)
+New `src/agent/master-loop.server.ts`:
+- Implements **Gather Context → Take Action → Verify → Loop** with a flat message history capped at N turns.
+- Tool registry exposed to the LLM via function calls: `read_file`, `write_memory`, `run_python` (E2B), `spawn_subagent`, `search_memory`, `read_vault`, `update_state`.
+- Persists the running TODO plan to `execution_plans.dag.todo` so it survives worker restarts (state materialization).
+- Replaces the current "reasoner → executor" two-shot flow as the default for `thinking` mode; the existing `makePlan` + `executePlan` becomes the fan-out path the master loop *invokes* when it decides to delegate.
 
-### 3a. Settings module (new)
-- New route `src/routes/_authenticated/settings.tsx` with tabs:
-  - **Profile** — display name, avatar (stored in new `profiles` table linked to `auth.users`).
-  - **Preferences** — chat default mode, splash on/off, theme density.
-  - **Account** — change password, sign out everywhere.
-- Add `Settings` tab to the top nav in `_authenticated.tsx`.
-- Migration: `profiles` table (`user_id` FK, `display_name`, `avatar_url`, `preferences jsonb`) with RLS (own row only) + trigger to auto-insert on signup.
+### 3b. Dynamic Workflows (parallel sub-agent fan-out + adversarial verifier)
+Extend `executor.server.ts`:
+- When the reasoner emits ≥3 independent nodes (no `depends_on`), execute them **in parallel** via `Promise.all` instead of the current sequential topo walk. Each sub-agent has its own isolated context (already true — they only see their stdin + dep env).
+- Add a **verifier pass**: after a plan finishes, spawn one `google/gemini-2.5-pro` call with the role "adversarial verifier" that receives the goal + final outputs and tries to refute them. If it produces a counter-argument with confidence ≥ threshold, the master loop spawns a fix node and re-runs the affected branch (capped at 2 fix iterations to avoid loops). Verifier result is stored on `execution_plans.dag.verification`.
+- Keep `MAX_SUBAGENT_DEPTH = 2` and the existing checkpoint pattern (each node already persists to `task_runs`, so resume-from-checkpoint is already free).
 
-### 3b. Agentic powers (using Lovable AI for sub-agents)
-- **Sub-agent orchestration:** extend `src/agent/reasoner.server.ts` so a plan node can spawn a child reasoner call with its own scratch context, returning a structured result to the parent. All calls go through `chat()` in `llm.server.ts` (single `LOVABLE_API_KEY`).
-- **Browser/URL skill:** new skill `open_url` that returns a structured action the chat UI renders as a button (`Open <site>`) — opens in a new tab on click. Purely client-side execution; agent emits the intent.
-- **Email skill:** new skill `send_email` that calls a TanStack server fn → Lovable AI Gateway is not an email provider, so wire it via a `resend` API call. Requires `RESEND_API_KEY` secret — I'll request it via `add_secret` when implementing.
-- **Proactive nudges:** the existing `/api/public/cron/chronos.ts` route already exists; wire it to scan `chronos_rules`, run matching ones through the reasoner, and write results into `signals` so they surface in `/inbox`.
+### 3c. Hermes 3-layer prompt hierarchy + skill registry
+New `src/agent/prompt-stack.server.ts` builds every system prompt as:
+```
+[ soul.md  — persistent Kora identity & boundaries     ]
+[ user.md  — profile snapshot from profiles.preferences ]
+[ memory.md — top-K memory_chunks for the goal         ]
+[ skills    — names+descriptions of matching skills    ]
+[ live history                                          ]
+```
+- `soul.md` lives at `src/agent/prompts/soul.md` (static, bundled).
+- `user.md` is materialized per-request from `profiles` row.
+- `memory.md` uses the existing `match_memory_chunks` RPC.
+- **Skill registry as procedural memory**: the existing `skills` table already stores reusable Python snippets keyed by signature hash. Add a `skills.intent_embedding` column + migration so the master loop can semantic-search past skills ("have I solved this before?") and inject the code as a one-shot example instead of regenerating from scratch — this is the agentskills.io / GEPA-style self-improvement loop.
+- After a successful plan, write a one-paragraph "playbook" memory chunk (`metadata.kind = "playbook"`) summarizing the sequence — same idea as Hermes' self-reflective playbooks.
 
-### 3c. Module sweep — make every existing module actually work
-Walk each authed route and verify the create/read/update/delete paths work end-to-end against the live DB. Known-broken or stubbed areas to repair:
-- `/plans` + `/plans/$id` — wire to `execution_plans` + `task_runs` (live data, not placeholder).
-- `/memory` — list/search `memory_chunks`, allow manual add + delete.
-- `/skills` — list `skills`, view active version code, toggle enabled.
-- `/vault` — list/add/delete `vault_secrets` (values write-only, never read back).
-- `/rules` — CRUD on `chronos_rules`.
-- `/inbox` — list `signals`, mark handled.
-- `/now` — read `user_state`, edit focus.
-- `/logs` — tail `task_runs` (latest 100).
-- `/chat` — confirm threads + streaming + uploads still work after the auth fix.
+### 3d. Pluggable memory interface
+Wrap memory access in `src/agent/memory.server.ts` with `searchMemory(userId, query, { providers: ["local"] })`. Local provider = current `memory_chunks` + pgvector. Interface leaves room to add `hindsight` / `mem0` later without touching call sites.
 
-For each, add a friendly empty state and a "something went wrong" boundary via the existing `ModuleShell`.
+## Technical Details
 
-### 3d. Auth-ready hook for safe queries
-Add `src/hooks/useAuthReady.ts` (per the established pattern): `getSession()` first, then subscribe to `onAuthStateChange`. Authed modules use `enabled: isReady && !!user` on their queries so RLS-protected calls never fire before the bearer token is attached. This is what prevents the "blank module + 401" class of bug across the app.
+- **Files created**: `src/routes/_authenticated/route.tsx`, `src/agent/master-loop.server.ts`, `src/agent/prompt-stack.server.ts`, `src/agent/prompts/soul.md`, `src/agent/memory.server.ts`, one migration for `skills.intent_embedding vector(768)`.
+- **Files modified**: `src/routes/login.tsx` (simplify post-login), `src/agent/executor.server.ts` (parallel fan-out + verifier), `src/agent/reasoner.server.ts` (emit verifier-friendly metadata), `src/lib/chat.functions.ts` (route thinking mode through master loop), `src/components/Splash.tsx` (no change expected — re-verify after layout move).
+- **Files deleted**: `src/routes/_authenticated.tsx` (replaced by folder `route.tsx`).
+- **No changes** to: `client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts`, `start.ts`.
+- **All AI calls** continue through `src/agent/llm.server.ts` → Lovable AI Gateway. No new providers, no new secrets.
 
-## Technical notes
-- No new tables besides `profiles`. All other modules already have schema.
-- One new secret request: `RESEND_API_KEY` (for the email skill). I'll prompt before writing the email code.
-- No edge functions; everything stays in TanStack server fns / server routes.
-- Title Case is a source-string change; no CSS tricks.
-
-## Out of scope
-- Push notifications, real file-upload pipeline beyond chat attachments, parent-child agents beyond a single nested level — those stay parked from earlier prioritization.
+## Order of execution
+1. Login fix + verify sign-in → /chat works.
+2. End-to-end smoke test of chat, agent, memory, every module.
+3. Build master loop + verifier + parallel fan-out + skill semantic recall.
+4. Final verification pass.
