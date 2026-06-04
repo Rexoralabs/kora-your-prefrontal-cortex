@@ -165,14 +165,11 @@ export const sendChatMessage = createServerFn({ method: "POST" })
       return { mode: "thinking" as const, plan_id: planId, message_id: agentMsg?.id ?? null };
     }
 
-    // Chat mode — full conversation context
+    // Chat mode — full conversation context with Hermes-style prompt stack
+    const { buildPromptStack } = await import("@/agent/prompt-stack.server");
+    const stack = await buildPromptStack({ userId, goal: data.text });
     const history = await fetchHistory(userId, data.thread_id);
-    const memorySnips = await fetchMemorySnippets(userId, data.text);
-    const sys =
-      KORA_SYSTEM +
-      (memorySnips.length
-        ? `\n\nWhat you remember about this person:\n- ${memorySnips.join("\n- ")}`
-        : "");
+    const sys = `${stack.system}\n\n# STYLE\n${KORA_SYSTEM}`;
 
     const userContent = buildUserContent(data.text, data.attachments);
     const messages = [
