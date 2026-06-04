@@ -68,6 +68,7 @@ export const Route = createFileRoute("/api/public/chat/stream")({
         const messages: any[] = [
           { role: "system", content: `${stack.system}\n\n# STYLE\n${KORA_STYLE}` },
         ];
+        for (const m of hist ?? []) {
           if (m.role === "user") {
             const imgs = ((m.attachments as any[]) ?? []).filter((a) => a.kind === "image");
             messages.push({
