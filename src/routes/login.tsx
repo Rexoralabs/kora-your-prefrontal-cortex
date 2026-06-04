@@ -1,18 +1,14 @@
-import { createFileRoute, useNavigate, useRouter, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight } from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/login")({
-  beforeLoad: async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) throw redirect({ to: "/chat" });
-    } catch (e) {
-      if ((e as any)?.isRedirect) throw e;
-    }
-  },
+  // No beforeLoad gate here — login is a public route. If a signed-in user
+  // hits /login, the effect below bounces them to /chat after the client
+  // hydrates (where the session actually exists). A beforeLoad redirect would
+  // run during SSR with no session and effectively be a no-op anyway.
   component: LoginPage,
 });
 
@@ -24,17 +20,18 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function go() {
-    // Confirm session is persisted before navigating, so the route guard
-    // never races against localStorage hydration.
-    for (let i = 0; i < 8; i++) {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) break;
-      await new Promise((r) => setTimeout(r, 80));
-    }
-    await router.invalidate();
-    nav({ to: "/chat", replace: true });
-  }
+  // If already signed in (e.g. returning visitor), bounce to /chat.
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!cancelled && !error && data.user) {
+        nav({ to: "/chat", replace: true });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [nav]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,7 +44,6 @@ function LoginPage() {
           options: { emailRedirectTo: `${window.location.origin}/chat` },
         });
         if (error) throw error;
-        // Auto-confirm is on — try sign in immediately
         const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
         if (signInErr) {
           toast.success("Account created. Sign in to continue.");
@@ -59,7 +55,11 @@ function LoginPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      await go();
+      // Session is now in localStorage. Invalidate the router so the
+      // _authenticated layout re-runs beforeLoad with the fresh user, then
+      // navigate. The root onAuthStateChange listener handles query cache.
+      await router.invalidate();
+      nav({ to: "/chat", replace: true });
     } catch (e: any) {
       toast.error(e.message ?? "Auth failed");
     } finally {
