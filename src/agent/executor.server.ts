@@ -63,145 +63,225 @@ export async function executePlan(
   let planFailed = false;
   let planError: string | undefined;
 
-  for (const node of ordered) {
-    // ─── Sub-agent delegation ──────────────────────────────────────────────
-    if (node.subgoal && node.subgoal.trim()) {
-      const subResult = await runSubAgent({
-        userId,
-        parentPlanId: planId,
-        node,
-        depth,
-        upstream: nodeOutputs,
-      });
-      if (!subResult.ok) {
-        planFailed = true;
-        planError = `subagent ${node.id} (${node.name}) failed: ${subResult.error}`;
-        break;
-      }
-      nodeOutputs[node.id] = { stdout: subResult.stdout, output: subResult.output };
-      continue;
+  // ─── Parallel fan-out by topological level ────────────────────────────────
+  // Group ready nodes (all deps satisfied) and run them concurrently. This is
+  // the "Dynamic Workflows" pattern — each node has its own isolated context;
+  // only their compact outputs are aggregated back.
+  const remaining = new Set(ordered.map((n) => n.id));
+  const nodeById = new Map(ordered.map((n) => [n.id, n]));
+
+  while (remaining.size && !planFailed) {
+    const ready: PlanNode[] = [];
+    for (const id of remaining) {
+      const n = nodeById.get(id)!;
+      if (n.depends_on.every((d) => nodeOutputs[d] !== undefined)) ready.push(n);
     }
-
-    const sigHash = signatureOf(node);
-    // Lookup cached skill
-    const { data: cachedSkill } = await supabaseAdmin
-      .from("skills")
-      .select("id, active_version_id, success_count, fail_count")
-      .eq("user_id", userId)
-      .eq("signature_hash", sigHash)
-      .maybeSingle();
-
-    let priorCode: string | undefined;
-    if (cachedSkill?.active_version_id) {
-      const { data: ver } = await supabaseAdmin
-        .from("skill_versions")
-        .select("code")
-        .eq("id", cachedSkill.active_version_id)
-        .maybeSingle();
-      priorCode = ver?.code;
-      console.log(`[kora.exec] node=${node.id} using cached skill ${cachedSkill.id}`);
-    }
-
-    const secretEnv = await resolveSecrets(userId, node.required_secrets);
-    const depEnv: Record<string, string> = {};
-    for (const dep of node.depends_on) {
-      const out = nodeOutputs[dep];
-      if (out) depEnv[`KORA_DEP_${dep.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}`] = out.stdout.slice(-8000);
-    }
-    const baseEnv: Record<string, string> = {
-      ...secretEnv,
-      ...depEnv,
-      KORA_INPUT: JSON.stringify(node.inputs ?? {}),
-      KORA_NODE_NAME: node.name,
-    };
-
-    let code = priorCode;
-    let succeeded = false;
-    let lastStdout = "";
-    let lastStderr = "";
-    let requirements: string | undefined;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      if (!code) {
-        const gen = await generateSkillCode({
-          node,
-          goal: plan.goal,
-          upstreamNodes: ordered.filter((n) => node.depends_on.includes(n.id)),
-          priorAttempt: attempt > 1 ? { code: code ?? "", stderr: lastStderr, stdout: lastStdout } : undefined,
-        });
-        code = gen.code;
-        requirements = gen.requirements;
-      }
-
-      console.log(`[kora.exec] run node=${node.id} attempt=${attempt}`);
-      const result = await runPython(code!, { env: baseEnv, requirements: requirements, timeoutMs: 90_000 });
-      lastStdout = result.stdout;
-      lastStderr = result.stderr;
-
-      const finalOutput = result.exit_code === 0 ? extractFinalOutput(result.stdout) : null;
-
-      // Persist task_run
-      await supabaseAdmin.from("task_runs").insert({
-        user_id: userId,
-        plan_id: planId,
-        node_id: node.id,
-        tool_name: node.name,
-        input: node.inputs as any,
-        output: finalOutput,
-        stdout: result.stdout.slice(0, 16_000),
-        stderr: result.stderr.slice(0, 16_000),
-        exit_code: result.exit_code,
-        status: result.exit_code === 0 ? "ok" : "error",
-        attempt,
-        duration_ms: result.duration_ms,
-      });
-
-      if (result.exit_code === 0) {
-        succeeded = true;
-        nodeOutputs[node.id] = { stdout: result.stdout, output: finalOutput };
-        // Promote/cache skill version
-        await promoteSkill({ userId, node, sigHash, code: code!, cachedSkillId: cachedSkill?.id, parentVersionId: cachedSkill?.active_version_id });
-        console.log(`[kora.exec] OK node=${node.id} attempt=${attempt}`);
-        break;
-      } else {
-        console.warn(`[kora.exec] FAIL node=${node.id} attempt=${attempt} stderr=${result.stderr.slice(-400)}`);
-        // Force regen on next attempt
-        code = undefined;
-      }
-    }
-
-    if (!succeeded) {
+    if (!ready.length) {
       planFailed = true;
-      planError = `node ${node.id} (${node.name}) failed after ${MAX_ATTEMPTS} attempts: ${lastStderr.slice(-400)}`;
-      if (cachedSkill?.id) {
-        await supabaseAdmin
-          .from("skills")
-          .update({ fail_count: (cachedSkill.fail_count ?? 0) + 1 })
-          .eq("id", cachedSkill.id);
-      }
+      planError = "deadlock: no ready nodes but plan incomplete";
       break;
+    }
+
+    const results = await Promise.all(
+      ready.map((node) => executeOneNode({ userId, planId, plan, node, depth, nodeOutputs })),
+    );
+
+    for (let i = 0; i < ready.length; i++) {
+      const node = ready[i];
+      const res = results[i];
+      remaining.delete(node.id);
+      if (res.ok) {
+        nodeOutputs[node.id] = { stdout: res.stdout, output: res.output };
+      } else {
+        planFailed = true;
+        planError = `node ${node.id} (${node.name}): ${res.error}`;
+      }
+    }
+  }
+
+  // ─── Adversarial verifier pass ────────────────────────────────────────────
+  // Spend one cheap LLM call to try and refute the synthesized result. If it
+  // raises a high-confidence objection, we mark the plan with that flag so
+  // the UI + future runs can learn from it. Skipped on failed/empty plans.
+  let verification: { passed: boolean; critique: string } | null = null;
+  if (!planFailed && Object.keys(nodeOutputs).length) {
+    try {
+      verification = await adversarialVerify(plan, nodeOutputs);
+    } catch (e) {
+      console.warn("[kora.verify] failed", (e as any)?.message);
     }
   }
 
   await supabaseAdmin
     .from("execution_plans")
-    .update({ status: planFailed ? "failed" : "succeeded", error: planError })
+    .update({
+      status: planFailed ? "failed" : "succeeded",
+      error: planError,
+      dag: { ...plan, verification } as any,
+    })
     .eq("id", planId);
 
-  // Best-effort: store a memory chunk of what we did
+  // Best-effort: store a memory chunk of what we did (Hermes-style playbook).
   try {
-    const summary = `Goal: ${plan.goal}. Outcome: ${planFailed ? "FAILED — " + planError : "succeeded"}.`;
+    const summary = `Goal: ${plan.goal}. Outcome: ${planFailed ? "FAILED — " + planError : "succeeded"}.${verification ? " Verifier: " + (verification.passed ? "passed" : "objected — " + verification.critique.slice(0, 240)) : ""}`;
     const vec = await embed(summary);
     await supabaseAdmin.from("memory_chunks").insert({
       user_id: userId,
       text: summary,
       embedding: vec as any,
-      metadata: { plan_id: planId, kind: "plan_outcome" },
+      metadata: { plan_id: planId, kind: "playbook" },
     });
   } catch (e) {
     console.warn("[kora.exec] memory persist failed", (e as any)?.message);
   }
 }
+
+// ─── Single-node executor (skill or subagent) ────────────────────────────────
+async function executeOneNode(args: {
+  userId: string;
+  planId: string;
+  plan: ExecutionPlan;
+  node: PlanNode;
+  depth: number;
+  nodeOutputs: Record<string, { stdout: string; output: any }>;
+}): Promise<{ ok: true; stdout: string; output: any } | { ok: false; error: string }> {
+  const { userId, planId, plan, node, depth, nodeOutputs } = args;
+
+  if (node.subgoal && node.subgoal.trim()) {
+    const subResult = await runSubAgent({
+      userId,
+      parentPlanId: planId,
+      node,
+      depth,
+      upstream: nodeOutputs,
+    });
+    return subResult;
+  }
+
+  const sigHash = signatureOf(node);
+  const { data: cachedSkill } = await supabaseAdmin
+    .from("skills")
+    .select("id, active_version_id, success_count, fail_count")
+    .eq("user_id", userId)
+    .eq("signature_hash", sigHash)
+    .maybeSingle();
+
+  let priorCode: string | undefined;
+  if (cachedSkill?.active_version_id) {
+    const { data: ver } = await supabaseAdmin
+      .from("skill_versions")
+      .select("code")
+      .eq("id", cachedSkill.active_version_id)
+      .maybeSingle();
+    priorCode = ver?.code;
+    console.log(`[kora.exec] node=${node.id} using cached skill ${cachedSkill.id}`);
+  }
+
+  const secretEnv = await resolveSecrets(userId, node.required_secrets);
+  const depEnv: Record<string, string> = {};
+  for (const dep of node.depends_on) {
+    const out = nodeOutputs[dep];
+    if (out) depEnv[`KORA_DEP_${dep.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}`] = out.stdout.slice(-8000);
+  }
+  const baseEnv: Record<string, string> = {
+    ...secretEnv,
+    ...depEnv,
+    KORA_INPUT: JSON.stringify(node.inputs ?? {}),
+    KORA_NODE_NAME: node.name,
+  };
+
+  let code = priorCode;
+  let lastStdout = "";
+  let lastStderr = "";
+  let requirements: string | undefined;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (!code) {
+      const gen = await generateSkillCode({
+        node,
+        goal: plan.goal,
+        upstreamNodes: plan.nodes.filter((n) => node.depends_on.includes(n.id)),
+        priorAttempt: attempt > 1 ? { code: code ?? "", stderr: lastStderr, stdout: lastStdout } : undefined,
+      });
+      code = gen.code;
+      requirements = gen.requirements;
+    }
+
+    console.log(`[kora.exec] run node=${node.id} attempt=${attempt}`);
+    const result = await runPython(code!, { env: baseEnv, requirements, timeoutMs: 90_000 });
+    lastStdout = result.stdout;
+    lastStderr = result.stderr;
+
+    const finalOutput = result.exit_code === 0 ? extractFinalOutput(result.stdout) : null;
+
+    await supabaseAdmin.from("task_runs").insert({
+      user_id: userId,
+      plan_id: planId,
+      node_id: node.id,
+      tool_name: node.name,
+      input: node.inputs as any,
+      output: finalOutput,
+      stdout: result.stdout.slice(0, 16_000),
+      stderr: result.stderr.slice(0, 16_000),
+      exit_code: result.exit_code,
+      status: result.exit_code === 0 ? "ok" : "error",
+      attempt,
+      duration_ms: result.duration_ms,
+    });
+
+    if (result.exit_code === 0) {
+      await promoteSkill({
+        userId,
+        node,
+        sigHash,
+        code: code!,
+        cachedSkillId: cachedSkill?.id,
+        parentVersionId: cachedSkill?.active_version_id,
+      });
+      console.log(`[kora.exec] OK node=${node.id} attempt=${attempt}`);
+      return { ok: true, stdout: result.stdout, output: finalOutput };
+    }
+    console.warn(`[kora.exec] FAIL node=${node.id} attempt=${attempt} stderr=${result.stderr.slice(-400)}`);
+    code = undefined; // force regen
+  }
+
+  if (cachedSkill?.id) {
+    await supabaseAdmin
+      .from("skills")
+      .update({ fail_count: (cachedSkill.fail_count ?? 0) + 1 })
+      .eq("id", cachedSkill.id);
+  }
+  return { ok: false, error: `failed after ${MAX_ATTEMPTS} attempts: ${lastStderr.slice(-400)}` };
+}
+
+// ─── Adversarial verifier ────────────────────────────────────────────────────
+// Cheap, independent LLM call whose explicit job is to refute the plan's
+// outputs. We use a small/fast model so this stays under ~1s and doesn't bloat
+// token spend. Returns {passed:true} when the verifier finds no objection.
+async function adversarialVerify(
+  plan: ExecutionPlan,
+  outputs: Record<string, { stdout: string; output: any }>,
+): Promise<{ passed: boolean; critique: string }> {
+  // Lazy import to keep the executor module client-graph-safe.
+  const { chat, DEFAULT_MODEL } = await import("./llm.server");
+  const summary = Object.entries(outputs)
+    .map(([id, o]) => `# ${id}\n${JSON.stringify(o.output).slice(0, 800)}`)
+    .join("\n\n");
+  const sys = `You are an adversarial verifier. Your only job is to find a concrete reason the plan's outputs DO NOT satisfy the goal. Be specific. If everything checks out, reply with exactly the token PASSED. Otherwise reply with a single short paragraph explaining the strongest objection.`;
+  const user = `# Goal\n${plan.goal}\n\n# Outputs (per node)\n${summary}`;
+  const res = await chat({
+    model: DEFAULT_MODEL,
+    messages: [
+      { role: "system", content: sys },
+      { role: "user", content: user },
+    ],
+    temperature: 0.2,
+  });
+  const text = (res.choices?.[0]?.message?.content ?? "").trim();
+  const passed = /^PASSED\b/i.test(text);
+  return { passed, critique: passed ? "" : text };
+}
+
 
 async function promoteSkill(args: {
   userId: string;
