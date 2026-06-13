@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,6 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const nav = useNavigate();
-  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,8 +22,8 @@ function LoginPage() {
   // If already signed in (e.g. returning visitor), bounce to /chat.
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (!cancelled && !error && data.user) {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled && data.session?.user) {
         nav({ to: "/chat", replace: true });
       }
     });
@@ -55,10 +54,6 @@ function LoginPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      // Session is now in localStorage. Invalidate the router so the
-      // _authenticated layout re-runs beforeLoad with the fresh user, then
-      // navigate. The root onAuthStateChange listener handles query cache.
-      await router.invalidate();
       nav({ to: "/chat", replace: true });
     } catch (e: any) {
       toast.error(e.message ?? "Auth failed");
