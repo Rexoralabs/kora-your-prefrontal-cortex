@@ -14,16 +14,16 @@ import {
   SignOut,
 } from "@phosphor-icons/react";
 
-// Client-rendered gate. Supabase session lives in localStorage, which the
-// server cannot read — running this on the server would always redirect to
-// /login (the exact bug the user was hitting). ssr:false + getUser() (which
-// re-validates with the auth server) is the integration-managed pattern.
+// Client-rendered gate. The session lives in browser storage, which the server
+// cannot read. Keep this gate local and let protected server functions validate
+// the bearer token; repeatedly calling getUser() here can create redirect loops
+// when the auth endpoint has a transient network failure.
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/login" });
-    return { user: data.user };
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.user) throw redirect({ to: "/login" });
+    return { user: data.session.user };
   },
   component: AuthedLayout,
 });
