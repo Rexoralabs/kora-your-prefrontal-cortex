@@ -44,9 +44,18 @@ export async function buildPromptStack(args: PromptStackArgs): Promise<PromptSta
     ? skillHints.map((s) => `- ${s.name}: ${s.description ?? ""}`).join("\n")
     : "(no learned skills yet)";
 
+  const now = new Date();
+  const liveMd = [
+    `- Now: ${now.toUTCString()} (UTC)`,
+    `- Operator focus: ${state?.focus ?? "(none set — suggest /focus)"}`,
+  ].join("\n");
+
   const system = [
     "# SOUL",
     SOUL_MD.trim(),
+    "",
+    "# LIVE CONTEXT",
+    liveMd,
     "",
     "# USER",
     userMd,
