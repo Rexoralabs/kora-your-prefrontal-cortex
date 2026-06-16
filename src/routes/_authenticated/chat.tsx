@@ -597,25 +597,74 @@ function UserBubble({ text, attachments }: { text: string; attachments: Attachme
   );
 }
 
-function AssistantBubble({ text, streaming }: { text: string; streaming?: boolean }) {
+function AssistantBubble({
+  text,
+  streaming,
+  attachments = [],
+  onCopy,
+  onRegenerate,
+}: {
+  text: string;
+  streaming?: boolean;
+  attachments?: Attachment[];
+  onCopy?: () => void;
+  onRegenerate?: () => void;
+}) {
+  const images = attachments.filter((a) => a.kind === "image");
   return (
-    <div className="flex gap-3">
+    <div className="group flex gap-3">
       <div className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-foreground text-background">
         <Sparkle weight="fill" size={14} />
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="glass-soft rounded-2xl rounded-tl-md px-4 py-3 text-[15px]">
-          {text ? (
-            <div className="md-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-            </div>
-          ) : (
-            <span className="thinking-text text-[14px]">thinking</span>
-          )}
-          {streaming && text && (
-            <span className="ml-0.5 inline-block h-3.5 w-1 translate-y-0.5 animate-pulse bg-primary" />
-          )}
-        </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {images.map((a, i) => (
+              <img
+                key={i}
+                src={a.url}
+                alt={a.name}
+                className="max-h-72 rounded-2xl border border-border object-cover shadow-soft"
+              />
+            ))}
+          </div>
+        )}
+        {(text || !images.length) && (
+          <div className="glass-soft rounded-2xl rounded-tl-md px-4 py-3 text-[15px]">
+            {text ? (
+              <div className="md-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              </div>
+            ) : (
+              <span className="thinking-text text-[14px]">thinking</span>
+            )}
+            {streaming && text && (
+              <span className="ml-0.5 inline-block h-3.5 w-1 translate-y-0.5 animate-pulse bg-primary" />
+            )}
+          </div>
+        )}
+        {!streaming && (onCopy || onRegenerate) && (
+          <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+            {onCopy && (
+              <button
+                onClick={onCopy}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                title="copy"
+              >
+                <Copy size={11} /> copy
+              </button>
+            )}
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                title="regenerate"
+              >
+                <ArrowsClockwise size={11} /> regenerate
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
