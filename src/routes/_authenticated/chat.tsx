@@ -419,7 +419,16 @@ function ThreadView({
             ) : m.role === "agent" ? (
               <AgentTraceBubble key={m.id} planId={m.plan_id} onOpen={onOpenPlan} />
             ) : (
-              <AssistantBubble key={m.id} text={m.content} />
+              <AssistantBubble
+                key={m.id}
+                text={m.content}
+                attachments={m.attachments ?? []}
+                onCopy={() => {
+                  navigator.clipboard.writeText(m.content ?? "");
+                  toast.success("copied");
+                }}
+                onRegenerate={() => regenerate(m.id)}
+              />
             ),
           )}
           {streaming !== null && (
@@ -496,17 +505,29 @@ function ThreadView({
               placeholder={
                 mode === "thinking"
                   ? "give kora a task to plan and execute…"
-                  : "ask kora anything…"
+                  : "ask kora anything… or try /remember /focus /think /image"
               }
               className="max-h-48 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] outline-none placeholder:text-muted-foreground"
             />
-            <button
-              disabled={sending || !draft.trim()}
-              className="btn-primary grid h-10 w-10 place-items-center rounded-xl disabled:opacity-30"
-              aria-label="send"
-            >
-              <ArrowUp weight="bold" size={18} />
-            </button>
+            {streaming !== null ? (
+              <button
+                type="button"
+                onClick={stopStream}
+                className="btn-primary grid h-10 w-10 place-items-center rounded-xl bg-destructive text-destructive-foreground"
+                aria-label="stop"
+                title="stop generating"
+              >
+                <Square weight="fill" size={14} />
+              </button>
+            ) : (
+              <button
+                disabled={sending || !draft.trim()}
+                className="btn-primary grid h-10 w-10 place-items-center rounded-xl disabled:opacity-30"
+                aria-label="send"
+              >
+                <ArrowUp weight="bold" size={18} />
+              </button>
+            )}
           </div>
           <p className="mt-2 text-center font-mono-tight text-[11px] text-muted-foreground">
             enter to send · shift+enter for newline · {mode === "thinking" ? "agent will plan + run" : "fluid streaming reply"}
