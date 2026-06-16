@@ -10,10 +10,13 @@ import {
   Brain,
   Check,
   ChatCircleDots,
+  Copy,
   Image as ImageIcon,
+  ArrowsClockwise,
   MagnifyingGlass,
   Plus,
   Sparkle,
+  Square,
   Trash,
   Warning,
   X,
@@ -28,6 +31,7 @@ import {
   sendChatMessage,
   createSignedUpload,
 } from "@/lib/chat.functions";
+import { runChatCommand, regenerateLastReply } from "@/lib/commands.functions";
 import { getPlan } from "@/lib/agent.functions";
 
 export const Route = createFileRoute("/_authenticated/chat")({
@@ -208,7 +212,7 @@ function ThreadView({
       const hasOpenPlan = d?.messages?.some(
         (m: any) => m.role === "agent" && m.plan_id,
       );
-      return hasOpenPlan ? 2000 : false;
+      return hasOpenPlan ? 800 : false;
     },
   });
 
@@ -216,12 +220,20 @@ function ThreadView({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [threadQ.data?.messages?.length, streaming]);
+
+  function stopStream() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStreaming(null);
+    setSending(false);
+  }
 
   async function uploadFile(file: File) {
     if (file.size > 8 * 1024 * 1024) {
@@ -252,74 +264,130 @@ function ThreadView({
     }
   }
 
+  // Slash-command parser. /cmd arg
+  const SLASH = /^\/(remember|focus|think|image)\s+(.+)$/is;
+
+  async function runSlash(cmd: "remember" | "focus" | "think" | "image", arg: string) {
+    setSending(true);
+    const cmdFn = runChatCommand;
+    const toastId = toast.loading(
+      cmd === "image"
+        ? "generating image…"
+        : cmd === "think"
+          ? "planning…"
+          : `/${cmd}…`,
+    );
+    try {
+      const res = await cmdFn({ data: { thread_id: threadId, command: cmd, arg } });
+      toast.dismiss(toastId);
+      if ((res as any)?.ok === false) toast.error((res as any).error ?? "command failed");
+      else toast.success(`/${cmd} done`);
+    } catch (e: any) {
+      toast.dismiss(toastId);
+      toast.error(e?.message ?? "command failed");
+    } finally {
+      setSending(false);
+      qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+      qc.invalidateQueries({ queryKey: ["chat-threads"] });
+    }
+  }
+
+  async function streamReply(text: string, sentAttachments: Attachment[]) {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) throw new Error("not signed in");
+    setStreaming("");
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const res = await fetch("/api/public/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ thread_id: threadId, text, attachments: sentAttachments }),
+      signal: ac.signal,
+    });
+    if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
+    qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let acc = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const chunk of parts) {
+          const line = chunk.trim();
+          if (!line.startsWith("data:")) continue;
+          try {
+            const j = JSON.parse(line.slice(5).trim());
+            if (j.type === "delta") {
+              acc += j.text;
+              setStreaming(acc);
+            } else if (j.type === "done") {
+              qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+              qc.invalidateQueries({ queryKey: ["chat-threads"] });
+            } else if (j.type === "error") {
+              toast.error(j.message);
+            }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      if (err?.name !== "AbortError") throw err;
+    } finally {
+      abortRef.current = null;
+      setStreaming(null);
+    }
+  }
+
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
     const text = draft.trim();
     if (!text || sending) return;
-    setSending(true);
     const sentAttachments = attachments;
     setDraft("");
     setAttachments([]);
 
+    // Slash command path
+    const slash = text.match(SLASH);
+    if (slash) {
+      await runSlash(slash[1].toLowerCase() as any, slash[2].trim());
+      return;
+    }
+
+    setSending(true);
     try {
       if (mode === "thinking") {
         await sendFn({ data: { thread_id: threadId, text, attachments: sentAttachments, mode } });
         qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
         qc.invalidateQueries({ queryKey: ["chat-threads"] });
       } else {
-        // streaming path
-        await qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
-        const { data: sess } = await supabase.auth.getSession();
-        const token = sess.session?.access_token;
-        if (!token) throw new Error("not signed in");
-        setStreaming("");
-        const res = await fetch("/api/public/chat/stream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            thread_id: threadId,
-            text,
-            attachments: sentAttachments,
-          }),
-        });
-        if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
-        // optimistic: refetch to show user msg
-        qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let acc = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const parts = buf.split("\n\n");
-          buf = parts.pop() ?? "";
-          for (const chunk of parts) {
-            const line = chunk.trim();
-            if (!line.startsWith("data:")) continue;
-            try {
-              const j = JSON.parse(line.slice(5).trim());
-              if (j.type === "delta") {
-                acc += j.text;
-                setStreaming(acc);
-              } else if (j.type === "done") {
-                qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
-                qc.invalidateQueries({ queryKey: ["chat-threads"] });
-              } else if (j.type === "error") {
-                toast.error(j.message);
-              }
-            } catch {}
-          }
-        }
-        setStreaming(null);
+        await streamReply(text, sentAttachments);
       }
     } catch (err: any) {
       toast.error(err.message ?? "send failed");
-      setStreaming(null);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function regenerate(messageId: string) {
+    // find the user message immediately preceding the assistant message
+    const msgs = (threadQ.data?.messages ?? []) as any[];
+    const idx = msgs.findIndex((m) => m.id === messageId);
+    if (idx < 1) return;
+    const prevUser = [...msgs.slice(0, idx)].reverse().find((m) => m.role === "user");
+    if (!prevUser) return;
+    try {
+      await regenerateLastReply({ data: { thread_id: threadId, message_id: messageId } });
+      await qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+      setSending(true);
+      await streamReply(prevUser.content, (prevUser.attachments as Attachment[]) ?? []);
+    } catch (e: any) {
+      toast.error(e?.message ?? "regen failed");
     } finally {
       setSending(false);
     }
