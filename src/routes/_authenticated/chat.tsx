@@ -10,10 +10,13 @@ import {
   Brain,
   Check,
   ChatCircleDots,
+  Copy,
   Image as ImageIcon,
+  ArrowsClockwise,
   MagnifyingGlass,
   Plus,
   Sparkle,
+  Square,
   Trash,
   Warning,
   X,
@@ -28,6 +31,7 @@ import {
   sendChatMessage,
   createSignedUpload,
 } from "@/lib/chat.functions";
+import { runChatCommand, regenerateLastReply } from "@/lib/commands.functions";
 import { getPlan } from "@/lib/agent.functions";
 
 export const Route = createFileRoute("/_authenticated/chat")({
@@ -208,7 +212,7 @@ function ThreadView({
       const hasOpenPlan = d?.messages?.some(
         (m: any) => m.role === "agent" && m.plan_id,
       );
-      return hasOpenPlan ? 2000 : false;
+      return hasOpenPlan ? 800 : false;
     },
   });
 
@@ -216,12 +220,20 @@ function ThreadView({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [threadQ.data?.messages?.length, streaming]);
+
+  function stopStream() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStreaming(null);
+    setSending(false);
+  }
 
   async function uploadFile(file: File) {
     if (file.size > 8 * 1024 * 1024) {
@@ -252,74 +264,130 @@ function ThreadView({
     }
   }
 
+  // Slash-command parser. /cmd arg
+  const SLASH = /^\/(remember|focus|think|image)\s+(.+)$/is;
+
+  async function runSlash(cmd: "remember" | "focus" | "think" | "image", arg: string) {
+    setSending(true);
+    const cmdFn = runChatCommand;
+    const toastId = toast.loading(
+      cmd === "image"
+        ? "generating image…"
+        : cmd === "think"
+          ? "planning…"
+          : `/${cmd}…`,
+    );
+    try {
+      const res = await cmdFn({ data: { thread_id: threadId, command: cmd, arg } });
+      toast.dismiss(toastId);
+      if ((res as any)?.ok === false) toast.error((res as any).error ?? "command failed");
+      else toast.success(`/${cmd} done`);
+    } catch (e: any) {
+      toast.dismiss(toastId);
+      toast.error(e?.message ?? "command failed");
+    } finally {
+      setSending(false);
+      qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+      qc.invalidateQueries({ queryKey: ["chat-threads"] });
+    }
+  }
+
+  async function streamReply(text: string, sentAttachments: Attachment[]) {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) throw new Error("not signed in");
+    setStreaming("");
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const res = await fetch("/api/public/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ thread_id: threadId, text, attachments: sentAttachments }),
+      signal: ac.signal,
+    });
+    if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
+    qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let acc = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const chunk of parts) {
+          const line = chunk.trim();
+          if (!line.startsWith("data:")) continue;
+          try {
+            const j = JSON.parse(line.slice(5).trim());
+            if (j.type === "delta") {
+              acc += j.text;
+              setStreaming(acc);
+            } else if (j.type === "done") {
+              qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+              qc.invalidateQueries({ queryKey: ["chat-threads"] });
+            } else if (j.type === "error") {
+              toast.error(j.message);
+            }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      if (err?.name !== "AbortError") throw err;
+    } finally {
+      abortRef.current = null;
+      setStreaming(null);
+    }
+  }
+
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
     const text = draft.trim();
     if (!text || sending) return;
-    setSending(true);
     const sentAttachments = attachments;
     setDraft("");
     setAttachments([]);
 
+    // Slash command path
+    const slash = text.match(SLASH);
+    if (slash) {
+      await runSlash(slash[1].toLowerCase() as any, slash[2].trim());
+      return;
+    }
+
+    setSending(true);
     try {
       if (mode === "thinking") {
         await sendFn({ data: { thread_id: threadId, text, attachments: sentAttachments, mode } });
         qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
         qc.invalidateQueries({ queryKey: ["chat-threads"] });
       } else {
-        // streaming path
-        await qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
-        const { data: sess } = await supabase.auth.getSession();
-        const token = sess.session?.access_token;
-        if (!token) throw new Error("not signed in");
-        setStreaming("");
-        const res = await fetch("/api/public/chat/stream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            thread_id: threadId,
-            text,
-            attachments: sentAttachments,
-          }),
-        });
-        if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
-        // optimistic: refetch to show user msg
-        qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let acc = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const parts = buf.split("\n\n");
-          buf = parts.pop() ?? "";
-          for (const chunk of parts) {
-            const line = chunk.trim();
-            if (!line.startsWith("data:")) continue;
-            try {
-              const j = JSON.parse(line.slice(5).trim());
-              if (j.type === "delta") {
-                acc += j.text;
-                setStreaming(acc);
-              } else if (j.type === "done") {
-                qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
-                qc.invalidateQueries({ queryKey: ["chat-threads"] });
-              } else if (j.type === "error") {
-                toast.error(j.message);
-              }
-            } catch {}
-          }
-        }
-        setStreaming(null);
+        await streamReply(text, sentAttachments);
       }
     } catch (err: any) {
       toast.error(err.message ?? "send failed");
-      setStreaming(null);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function regenerate(messageId: string) {
+    // find the user message immediately preceding the assistant message
+    const msgs = (threadQ.data?.messages ?? []) as any[];
+    const idx = msgs.findIndex((m) => m.id === messageId);
+    if (idx < 1) return;
+    const prevUser = [...msgs.slice(0, idx)].reverse().find((m) => m.role === "user");
+    if (!prevUser) return;
+    try {
+      await regenerateLastReply({ data: { thread_id: threadId, message_id: messageId } });
+      await qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+      setSending(true);
+      await streamReply(prevUser.content, (prevUser.attachments as Attachment[]) ?? []);
+    } catch (e: any) {
+      toast.error(e?.message ?? "regen failed");
     } finally {
       setSending(false);
     }
@@ -351,7 +419,16 @@ function ThreadView({
             ) : m.role === "agent" ? (
               <AgentTraceBubble key={m.id} planId={m.plan_id} onOpen={onOpenPlan} />
             ) : (
-              <AssistantBubble key={m.id} text={m.content} />
+              <AssistantBubble
+                key={m.id}
+                text={m.content}
+                attachments={m.attachments ?? []}
+                onCopy={() => {
+                  navigator.clipboard.writeText(m.content ?? "");
+                  toast.success("copied");
+                }}
+                onRegenerate={() => regenerate(m.id)}
+              />
             ),
           )}
           {streaming !== null && (
@@ -428,17 +505,29 @@ function ThreadView({
               placeholder={
                 mode === "thinking"
                   ? "give kora a task to plan and execute…"
-                  : "ask kora anything…"
+                  : "ask kora anything… or try /remember /focus /think /image"
               }
               className="max-h-48 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] outline-none placeholder:text-muted-foreground"
             />
-            <button
-              disabled={sending || !draft.trim()}
-              className="btn-primary grid h-10 w-10 place-items-center rounded-xl disabled:opacity-30"
-              aria-label="send"
-            >
-              <ArrowUp weight="bold" size={18} />
-            </button>
+            {streaming !== null ? (
+              <button
+                type="button"
+                onClick={stopStream}
+                className="btn-primary grid h-10 w-10 place-items-center rounded-xl bg-destructive text-destructive-foreground"
+                aria-label="stop"
+                title="stop generating"
+              >
+                <Square weight="fill" size={14} />
+              </button>
+            ) : (
+              <button
+                disabled={sending || !draft.trim()}
+                className="btn-primary grid h-10 w-10 place-items-center rounded-xl disabled:opacity-30"
+                aria-label="send"
+              >
+                <ArrowUp weight="bold" size={18} />
+              </button>
+            )}
           </div>
           <p className="mt-2 text-center font-mono-tight text-[11px] text-muted-foreground">
             enter to send · shift+enter for newline · {mode === "thinking" ? "agent will plan + run" : "fluid streaming reply"}
@@ -508,25 +597,74 @@ function UserBubble({ text, attachments }: { text: string; attachments: Attachme
   );
 }
 
-function AssistantBubble({ text, streaming }: { text: string; streaming?: boolean }) {
+function AssistantBubble({
+  text,
+  streaming,
+  attachments = [],
+  onCopy,
+  onRegenerate,
+}: {
+  text: string;
+  streaming?: boolean;
+  attachments?: Attachment[];
+  onCopy?: () => void;
+  onRegenerate?: () => void;
+}) {
+  const images = attachments.filter((a) => a.kind === "image");
   return (
-    <div className="flex gap-3">
+    <div className="group flex gap-3">
       <div className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-foreground text-background">
         <Sparkle weight="fill" size={14} />
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="glass-soft rounded-2xl rounded-tl-md px-4 py-3 text-[15px]">
-          {text ? (
-            <div className="md-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-            </div>
-          ) : (
-            <span className="thinking-text text-[14px]">thinking</span>
-          )}
-          {streaming && text && (
-            <span className="ml-0.5 inline-block h-3.5 w-1 translate-y-0.5 animate-pulse bg-primary" />
-          )}
-        </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {images.map((a, i) => (
+              <img
+                key={i}
+                src={a.url}
+                alt={a.name}
+                className="max-h-72 rounded-2xl border border-border object-cover shadow-soft"
+              />
+            ))}
+          </div>
+        )}
+        {(text || !images.length) && (
+          <div className="glass-soft rounded-2xl rounded-tl-md px-4 py-3 text-[15px]">
+            {text ? (
+              <div className="md-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              </div>
+            ) : (
+              <span className="thinking-text text-[14px]">thinking</span>
+            )}
+            {streaming && text && (
+              <span className="ml-0.5 inline-block h-3.5 w-1 translate-y-0.5 animate-pulse bg-primary" />
+            )}
+          </div>
+        )}
+        {!streaming && (onCopy || onRegenerate) && (
+          <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+            {onCopy && (
+              <button
+                onClick={onCopy}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                title="copy"
+              >
+                <Copy size={11} /> copy
+              </button>
+            )}
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                title="regenerate"
+              >
+                <ArrowsClockwise size={11} /> regenerate
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
